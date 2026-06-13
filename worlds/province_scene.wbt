@@ -11,6 +11,11 @@ EXTERNPROTO "../robocom_webots/Cube.proto"
 EXTERNPROTO "../robocom_webots/Cuboid.proto"
 EXTERNPROTO "../robocom_webots/FivePointed.proto"
 EXTERNPROTO "../robocom_webots/Pentagonal.proto"
+EXTERNPROTO "../robocom_webots/Cylindrical.proto"
+EXTERNPROTO "../robocom_webots/Quincunx.proto"
+EXTERNPROTO "../robocom_webots/Parallelogram.proto"
+EXTERNPROTO "../robocom_webots/Cruciform.proto"
+EXTERNPROTO "../robocom_webots/Triangle.proto"
 
 WorldInfo {
   basicTimeStep 16
@@ -87,14 +92,74 @@ Solid {
   children [
     Shape {
       appearance PBRAppearance {
-        baseColor 0.64 0.92 0.68
-        transparency 0.35
+        baseColor 0.82 0.96 0.84
+        transparency 0.12
         roughness 0.4
         metalness 0
       }
       geometry Box {
         size 0.3 0.14 0.01
       }
+    }
+    Pose {
+      translation 0 0.071 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.10 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.304 0.003 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation 0 -0.071 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.10 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.304 0.003 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation -0.1515 0 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.10 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.003 0.144 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation 0.1515 0 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.10 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.003 0.144 0.001
+          }
+        }
+      ]
     }
   ]
   boundingObject Box {
@@ -192,6 +257,32 @@ Pentagonal {
   name "pentagonal_2"
 }
 
+# Extra material test templates.
+# Uncomment one or copy it onto a material box position when testing another shape.
+# Cylindrical {
+#   translation -0.13 0.21 0.016
+#   name "test_cylindrical"
+# }
+# Quincunx {
+#   translation -0.13 0.21 0.016
+#   name "test_quincunx"
+# }
+# Parallelogram {
+#   translation -0.13 0.21 0.016
+#   rotation 0 0 1 0.35
+#   name "test_parallelogram"
+# }
+# Cruciform {
+#   translation -0.13 0.21 0.016
+#   rotation 0 0 1 0.35
+#   name "test_cruciform"
+# }
+# Triangle {
+#   translation -0.13 0.21 0.016
+#   rotation 0 0 1 0.35
+#   name "test_triangle"
+# }
+
 # Robot and vision system.
 FourDofScaraRobot {
   translation 0 0 0
@@ -210,7 +301,7 @@ FourDofScaraRobot {
 }
 
 RobodynoCamera {
-  translation -0.025 0.245 0.45
+  translation -0.032 0.245 0.45
   rotation 0.707 0.707 0 3.14159
   name "top_camera"
   cameraId "camera"

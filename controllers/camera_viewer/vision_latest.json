@@ -1,6 +1,8 @@
 {
-  "sim_time_s": 92.384,
-  "timestamp_unix": 1781370436.795,
+  "sim_time_s": 3.056,
+  "timestamp_unix": 1781373210.211,
+  "image_transform": "rotate_180",
+  "angle_rule": "center_longest_axis_left_priority_min_x_angle",
   "coordinate_rule": {
     "x_m": "table_center_x + (pixel_x - table_center_pixel_x) * meters_per_pixel_x",
     "y_m": "table_center_y - (pixel_y - table_center_pixel_y) * meters_per_pixel_y",
@@ -8,14 +10,15 @@
   },
   "calibration": {
     "table_bounds_px": [
-      51,
-      172,
-      537,
-      211
+      70,
+      105,
+      524,
+      249
     ],
+    "table_bounds_mode": "fixed_calibration",
     "table_center_px": [
-      319.5,
-      277.5
+      332.0,
+      229.5
     ],
     "table_center_m": [
       -0.025,
@@ -25,155 +28,160 @@
       0.3,
       0.14
     ],
+    "top_camera_translation_m": [
+      -0.032,
+      0.245,
+      0.45
+    ],
     "meters_per_px": [
-      0.00055866,
-      0.00066351
+      0.00057252,
+      0.00056225
     ]
   },
   "objects": [
     {
-      "shape": "FivePointed",
-      "shape_label": "five_pointed",
-      "color": "pink",
-      "color_label": "pink",
-      "pixel_center": [
-        510.7,
-        321.6
-      ],
-      "world_center_m": [
-        0.08182,
-        0.21577,
-        0.01
-      ],
-      "angle_z_deg": 102.6,
-      "area_px": 3275.5,
-      "confidence": 0.96
-    },
-    {
-      "shape": "FivePointed",
-      "shape_label": "five_pointed",
-      "color": "pink",
-      "color_label": "pink",
-      "pixel_center": [
-        392.6,
-        321.5
-      ],
-      "world_center_m": [
-        0.01584,
-        0.2158,
-        0.01
-      ],
-      "angle_z_deg": -113.5,
-      "area_px": 3280.0,
-      "confidence": 0.96
-    },
-    {
-      "shape": "Pentagonal",
-      "shape_label": "pentagonal",
-      "color": "green",
-      "color_label": "green",
-      "pixel_center": [
-        128.4,
-        321.3
-      ],
-      "world_center_m": [
-        -0.13173,
-        0.21591,
-        0.01
-      ],
-      "angle_z_deg": -36.2,
-      "area_px": 3177.0,
-      "confidence": 0.96
-    },
-    {
-      "shape": "Pentagonal",
-      "shape_label": "pentagonal",
-      "color": "green",
-      "color_label": "green",
-      "pixel_center": [
-        246.6,
-        321.3
-      ],
-      "world_center_m": [
-        -0.06575,
-        0.21593,
-        0.01
-      ],
-      "angle_z_deg": -108.4,
-      "area_px": 3164.0,
-      "confidence": 0.96
-    },
-    {
       "shape": "Cube",
       "shape_label": "cube",
+      "color": "orange",
+      "color_label": "orange",
+      "pixel_center": [
+        260.0,
+        285.0
+      ],
+      "world_center_m": [
+        -0.06622,
+        0.2138,
+        0.01
+      ],
+      "angle_z_deg": 0.0,
+      "area_px": 5183.5,
+      "confidence": 0.97
+    },
+    {
+      "shape": "Cuboid",
+      "shape_label": "cuboid",
       "color": "red",
       "color_label": "red",
       "pixel_center": [
-        141.0,
-        214.0
+        405.0,
+        285.0
       ],
       "world_center_m": [
-        -0.12472,
-        0.28713,
+        0.01679,
+        0.2138,
         0.01
       ],
       "angle_z_deg": -90.0,
-      "area_px": 6048.0,
+      "area_px": 6480.0,
+      "confidence": 0.97
+    },
+    {
+      "shape": "Cuboid",
+      "shape_label": "cuboid",
+      "color": "red",
+      "color_label": "red",
+      "pixel_center": [
+        523.0,
+        285.0
+      ],
+      "world_center_m": [
+        0.08435,
+        0.2138,
+        0.01
+      ],
+      "angle_z_deg": -90.0,
+      "area_px": 6480.0,
       "confidence": 0.97
     },
     {
       "shape": "Cube",
       "shape_label": "cube",
-      "color": "red",
-      "color_label": "red",
-      "pixel_center": [
-        247.0,
-        205.5
-      ],
-      "world_center_m": [
-        -0.0655,
-        0.29277,
-        0.01
-      ],
-      "angle_z_deg": -0.0,
-      "area_px": 4824.0,
-      "confidence": 0.97
-    },
-    {
-      "shape": "Cuboid",
-      "shape_label": "cuboid",
       "color": "orange",
       "color_label": "orange",
       "pixel_center": [
-        391.5,
-        201.0
+        143.5,
+        285.0
       ],
       "world_center_m": [
-        0.01522,
-        0.29576,
+        -0.13294,
+        0.21382,
         0.01
       ],
-      "angle_z_deg": -0.0,
-      "area_px": 4234.0,
+      "angle_z_deg": 0.0,
+      "area_px": 5537.5,
       "confidence": 0.97
     },
     {
-      "shape": "Cuboid",
-      "shape_label": "cuboid",
-      "color": "orange",
-      "color_label": "orange",
+      "shape": "Pentagonal",
+      "shape_label": "pentagonal",
+      "color": "green",
+      "color_label": "green",
       "pixel_center": [
-        507.5,
-        201.0
+        523.4,
+        157.7
       ],
       "world_center_m": [
-        0.08003,
-        0.29576,
+        0.08459,
+        0.28537,
         0.01
       ],
-      "angle_z_deg": -0.0,
-      "area_px": 4466.0,
-      "confidence": 0.97
+      "angle_z_deg": 2.7,
+      "area_px": 3163.0,
+      "confidence": 0.96
+    },
+    {
+      "shape": "FivePointed",
+      "shape_label": "five_pointed",
+      "color": "pink",
+      "color_label": "pink",
+      "pixel_center": [
+        141.0,
+        157.5
+      ],
+      "world_center_m": [
+        -0.13436,
+        0.28546,
+        0.01
+      ],
+      "angle_z_deg": -7.1,
+      "area_px": 3286.5,
+      "confidence": 0.96
+    },
+    {
+      "shape": "Pentagonal",
+      "shape_label": "pentagonal",
+      "color": "green",
+      "color_label": "green",
+      "pixel_center": [
+        405.0,
+        157.5
+      ],
+      "world_center_m": [
+        0.01678,
+        0.28546,
+        0.01
+      ],
+      "angle_z_deg": 2.5,
+      "area_px": 3191.0,
+      "confidence": 0.96
+    },
+    {
+      "shape": "FivePointed",
+      "shape_label": "five_pointed",
+      "color": "pink",
+      "color_label": "pink",
+      "pixel_center": [
+        259.3,
+        157.4
+      ],
+      "world_center_m": [
+        -0.06665,
+        0.28552,
+        0.01
+      ],
+      "angle_z_deg": -8.5,
+      "area_px": 3273.5,
+      "confidence": 0.96
     }
   ]
 }

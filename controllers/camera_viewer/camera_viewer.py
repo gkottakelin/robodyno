@@ -22,12 +22,39 @@ BASE_DIR = os.path.dirname(__file__)
 SNAPSHOT_FILE = os.path.join(BASE_DIR, "camera_preview_latest.png")
 VISION_RESULT_FILE = os.path.join(BASE_DIR, "vision_latest.json")
 
+# The Webots top camera image is opposite to the competition field view.
+# Detection, preview, snapshots, and exported coordinates all use this corrected image.
+IMAGE_ROTATE_180 = True
+IMAGE_TRANSFORM_LABEL = "rotate_180" if IMAGE_ROTATE_180 else "none"
+
+# The camera is fixed in province_scene.wbt, so use a calibrated table box first.
+# This avoids coordinate drift when the pick table and floor have low contrast.
+TABLE_BOUNDS_MODE = "fixed_calibration"
+
+# Ratio bounds are x, y, width, height in the corrected 640x480 preview.
+# Tuned for top_camera translation -0.032 0.245 0.45.
+ROTATED_PICK_TABLE_BOUNDS_RATIO = (0.11, 0.22, 0.82, 0.52)
+RAW_PICK_TABLE_BOUNDS_RATIO = (0.08, 0.36, 0.84, 0.44)
+TOP_CAMERA_TRANSLATION_M = (-0.032, 0.245, 0.45)
+
 # World coordinates of the pick table in province_scene.wbt.
 PICK_TABLE_CENTER_M = (-0.025, 0.245)
 PICK_TABLE_SIZE_M = (0.300, 0.140)
 PICK_TABLE_Z_M = 0.010
 
 MIN_OBJECT_AREA_PX = 450
+AXIS_TIE_RADIUS_PX = 2.5
+AXIS_TIE_RADIUS_RATIO = 0.04
+
+UNDIRECTED_AXIS_SHAPES = (
+    "FivePointed",
+    "Pentagonal",
+    "Triangular",
+    "Quincunx",
+    "Cruciform",
+)
+
+ANGLE_FREE_SHAPES = ("Cylindrical", "Cube")
 
 COLOR_RANGES = {
     "red": [((0, 80, 70), (8, 255, 255)), ((170, 80, 70), (180, 255, 255))],
@@ -112,6 +139,7 @@ def main():
 
         image = np.frombuffer(raw_image, np.uint8).reshape((height, width, 4))
         frame = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+        frame = apply_image_transform(frame)
 
         frame_count += 1
         now = robot.getTime()
@@ -130,10 +158,16 @@ def main():
         if key == ord("q") or key == 27:
             break
         if key == ord("s"):
-            camera.saveImage(SNAPSHOT_FILE, 100)
+            cv2.imwrite(SNAPSHOT_FILE, frame)
             print(f"Saved snapshot: {SNAPSHOT_FILE}")
 
     cv2.destroyAllWindows()
+
+
+def apply_image_transform(frame):
+    if IMAGE_ROTATE_180:
+        return cv2.rotate(frame, cv2.ROTATE_180)
+    return frame
 
 
 def detect_blocks(frame):
@@ -194,36 +228,48 @@ def detect_blocks(frame):
 
 def detect_pick_table_bounds(hsv, frame_shape):
     height, width = frame_shape[:2]
-    table_mask = cv2.inRange(hsv, np.array((40, 18, 80)), np.array((90, 125, 255)))
-    kernel = np.ones((13, 13), np.uint8)
+    fixed_bounds = clamp_bounds(default_pick_table_bounds(width, height), width, height)
+    if TABLE_BOUNDS_MODE == "fixed_calibration":
+        return fixed_bounds
+
+    green_edge_mask = cv2.inRange(hsv, np.array((40, 18, 80)), np.array((90, 140, 255)))
+    gray_box_mask = cv2.inRange(hsv, np.array((0, 0, 120)), np.array((180, 65, 235)))
+    table_mask = cv2.bitwise_or(green_edge_mask, gray_box_mask)
+
+    kernel = np.ones((19, 19), np.uint8)
     table_mask = cv2.morphologyEx(table_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-    table_mask = cv2.dilate(table_mask, kernel, iterations=1)
+    table_mask = cv2.morphologyEx(table_mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
+    table_mask = cv2.dilate(table_mask, np.ones((9, 9), np.uint8), iterations=1)
 
     best = None
     best_area = 0.0
     for contour in find_external_contours(table_mask):
         area = cv2.contourArea(contour)
-        if area < width * height * 0.04:
+        if area < width * height * 0.08:
             continue
         x, y, w, h = cv2.boundingRect(contour)
         if h == 0:
             continue
         ratio = w / float(h)
-        if 1.5 <= ratio <= 3.2 and area > best_area:
+        if 1.6 <= ratio <= 3.4 and w > width * 0.45 and h > height * 0.22 and area > best_area:
             best = (x, y, w, h)
             best_area = area
 
     if best is not None:
         return clamp_bounds(best, width, height)
 
-    # Fallback for the current top camera view if the pale table color is hidden.
-    fallback = (
-        int(width * 0.08),
-        int(height * 0.36),
-        int(width * 0.84),
-        int(height * 0.44),
+    return fixed_bounds
+
+
+def default_pick_table_bounds(width, height):
+    ratios = ROTATED_PICK_TABLE_BOUNDS_RATIO if IMAGE_ROTATE_180 else RAW_PICK_TABLE_BOUNDS_RATIO
+    x_ratio, y_ratio, w_ratio, h_ratio = ratios
+    return (
+        int(width * x_ratio),
+        int(height * y_ratio),
+        int(width * w_ratio),
+        int(height * h_ratio),
     )
-    return clamp_bounds(fallback, width, height)
 
 
 def clamp_bounds(bounds, width, height):
@@ -244,9 +290,15 @@ def build_calibration(table_bounds):
     )
     return {
         "table_bounds_px": [int(x), int(y), int(w), int(h)],
+        "table_bounds_mode": TABLE_BOUNDS_MODE,
         "table_center_px": [round(center_px[0], 2), round(center_px[1], 2)],
         "table_center_m": [PICK_TABLE_CENTER_M[0], PICK_TABLE_CENTER_M[1]],
         "table_size_m": [PICK_TABLE_SIZE_M[0], PICK_TABLE_SIZE_M[1]],
+        "top_camera_translation_m": [
+            TOP_CAMERA_TRANSLATION_M[0],
+            TOP_CAMERA_TRANSLATION_M[1],
+            TOP_CAMERA_TRANSLATION_M[2],
+        ],
         "meters_per_px": [round(meters_per_px[0], 8), round(meters_per_px[1], 8)],
     }
 
@@ -383,21 +435,51 @@ def count_convexity_defects(contour):
 
 
 def measure_angle_deg(shape, contour, center):
-    if shape in ("Cylindrical", "Quincunx"):
+    if shape in ANGLE_FREE_SHAPES:
         return 0.0
-    if shape in ("FivePointed", "Pentagonal", "Triangular"):
-        return pointed_shape_angle_deg(contour, center)
+    if shape in UNDIRECTED_AXIS_SHAPES:
+        return center_longest_axis_angle_deg(contour, center)
     return rect_like_angle_deg(contour)
 
 
-def pointed_shape_angle_deg(contour, center):
+def center_longest_axis_angle_deg(contour, center):
     cx, cy = center
     points = contour.reshape(-1, 2).astype(float)
-    distances = np.sum((points - np.array((cx, cy))) ** 2, axis=1)
-    tip = points[int(np.argmax(distances))]
-    dx = tip[0] - cx
-    dy = tip[1] - cy
-    return normalize_angle_180(-math.degrees(math.atan2(dy, dx)))
+    vectors = points - np.array((cx, cy))
+    radii = np.linalg.norm(vectors, axis=1)
+    if len(radii) == 0:
+        return 0.0
+
+    max_radius = float(np.max(radii))
+    if max_radius <= 1e-6:
+        return 0.0
+
+    tolerance = max(AXIS_TIE_RADIUS_PX, max_radius * AXIS_TIE_RADIUS_RATIO)
+    candidates = []
+    for vector, radius in zip(vectors, radii):
+        if radius < max_radius - tolerance:
+            continue
+        dx_world = float(vector[0])
+        dy_world = float(-vector[1])
+        if dx_world > 0.0:
+            dx_world = -dx_world
+            dy_world = -dy_world
+        candidates.append((dx_world, dy_world, float(radius)))
+
+    if not candidates:
+        dx_world = float(vectors[int(np.argmax(radii))][0])
+        dy_world = float(-vectors[int(np.argmax(radii))][1])
+        if dx_world > 0.0:
+            dx_world = -dx_world
+            dy_world = -dy_world
+        candidates.append((dx_world, dy_world, max_radius))
+
+    # Tie break: first prefer the axis direction that points most to the left,
+    # then prefer the longest radius. This keeps regular polygons from jumping
+    # between equivalent vertices when the contour has tiny pixel noise.
+    dx_world, dy_world, _ = min(candidates, key=lambda item: (item[0], -item[2], abs(item[1])))
+    directed_angle = math.degrees(math.atan2(dy_world, dx_world))
+    return normalize_symmetric_90(directed_angle)
 
 
 def rect_like_angle_deg(contour):
@@ -441,6 +523,8 @@ def write_vision_result(detections, calibration, sim_time):
     payload = {
         "sim_time_s": round(sim_time, 3),
         "timestamp_unix": round(time.time(), 3),
+        "image_transform": IMAGE_TRANSFORM_LABEL,
+        "angle_rule": "center_longest_axis_left_priority_min_x_angle",
         "coordinate_rule": {
             "x_m": "table_center_x + (pixel_x - table_center_pixel_x) * meters_per_pixel_x",
             "y_m": "table_center_y - (pixel_y - table_center_pixel_y) * meters_per_pixel_y",
@@ -479,6 +563,8 @@ def draw_overlay(frame, fps, detections, calibration):
 
     draw_text(frame, f"{width}x{height}  FPS:{fps:.1f}", (10, 32), (50, 255, 50), 0.9, 2)
     draw_text(frame, f"objects:{len(detections)}", (10, 62), (50, 255, 50), 0.7, 2)
+    draw_text(frame, f"image:{IMAGE_TRANSFORM_LABEL}", (10, 88), (50, 255, 50), 0.55, 1)
+    draw_text(frame, f"table:{TABLE_BOUNDS_MODE}", (10, 112), (50, 255, 50), 0.5, 1)
 
     for detection in detections:
         px, py = detection["pixel_center"]
@@ -489,13 +575,17 @@ def draw_overlay(frame, fps, detections, calibration):
         color = color_to_bgr(detection["color"])
 
         cv2.circle(frame, (cx, cy), 5, color, -1)
-        arrow_len = 34
+        axis_len = 34
         radians = math.radians(-angle)
-        endpoint = (
-            int(round(cx + arrow_len * math.cos(radians))),
-            int(round(cy + arrow_len * math.sin(radians))),
+        endpoint_a = (
+            int(round(cx + axis_len * math.cos(radians))),
+            int(round(cy + axis_len * math.sin(radians))),
         )
-        cv2.arrowedLine(frame, (cx, cy), endpoint, color, 2, tipLength=0.25)
+        endpoint_b = (
+            int(round(cx - axis_len * math.cos(radians))),
+            int(round(cy - axis_len * math.sin(radians))),
+        )
+        cv2.line(frame, endpoint_a, endpoint_b, color, 2)
 
         block_w = 190
         block_h = 68
