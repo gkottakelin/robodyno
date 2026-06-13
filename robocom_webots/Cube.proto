@@ -41,6 +41,10 @@ PROTO Cube [
     physics Physics {
       density -1
       mass 0.01
+      damping Damping {
+        linear 0.35
+        angular 0.8
+      }
     }
   }
 }

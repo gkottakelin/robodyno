@@ -1,8 +1,9 @@
 {
-  "sim_time_s": 3.056,
-  "timestamp_unix": 1781373210.211,
+  "sim_time_s": 82.816,
+  "timestamp_unix": 1781381031.58,
   "image_transform": "rotate_180",
-  "angle_rule": "center_longest_axis_left_priority_min_x_angle",
+  "shape_rule": "geometry_only_official_stl_template_match",
+  "angle_rule": "circle_zero_cube_cuboid_rect_axis_cruciform_nearest_equivalent_else_farthest_equivalent_min_abs_x_angle",
   "coordinate_rule": {
     "x_m": "table_center_x + (pixel_x - table_center_pixel_x) * meters_per_pixel_x",
     "y_m": "table_center_y - (pixel_y - table_center_pixel_y) * meters_per_pixel_y",
@@ -40,76 +41,40 @@
   },
   "objects": [
     {
-      "shape": "Cube",
-      "shape_label": "cube",
-      "color": "orange",
-      "color_label": "orange",
+      "shape": "Quincunx",
+      "shape_label": "quincunx",
+      "color": "cyan",
+      "color_label": "cyan",
       "pixel_center": [
-        260.0,
-        285.0
+        272.2,
+        285.1
       ],
       "world_center_m": [
-        -0.06622,
-        0.2138,
+        -0.05922,
+        0.21376,
         0.01
       ],
-      "angle_z_deg": 0.0,
-      "area_px": 5183.5,
+      "angle_z_deg": 24.5,
+      "area_px": 4520.0,
       "confidence": 0.97
     },
     {
-      "shape": "Cuboid",
-      "shape_label": "cuboid",
-      "color": "red",
-      "color_label": "red",
+      "shape": "Parallelogram",
+      "shape_label": "parallelogram",
+      "color": "blue",
+      "color_label": "blue",
       "pixel_center": [
-        405.0,
-        285.0
+        411.8,
+        283.3
       ],
       "world_center_m": [
-        0.01679,
-        0.2138,
+        0.02067,
+        0.21477,
         0.01
       ],
-      "angle_z_deg": -90.0,
-      "area_px": 6480.0,
-      "confidence": 0.97
-    },
-    {
-      "shape": "Cuboid",
-      "shape_label": "cuboid",
-      "color": "red",
-      "color_label": "red",
-      "pixel_center": [
-        523.0,
-        285.0
-      ],
-      "world_center_m": [
-        0.08435,
-        0.2138,
-        0.01
-      ],
-      "angle_z_deg": -90.0,
-      "area_px": 6480.0,
-      "confidence": 0.97
-    },
-    {
-      "shape": "Cube",
-      "shape_label": "cube",
-      "color": "orange",
-      "color_label": "orange",
-      "pixel_center": [
-        143.5,
-        285.0
-      ],
-      "world_center_m": [
-        -0.13294,
-        0.21382,
-        0.01
-      ],
-      "angle_z_deg": 0.0,
-      "area_px": 5537.5,
-      "confidence": 0.97
+      "angle_z_deg": -40.3,
+      "area_px": 5020.5,
+      "confidence": 0.99
     },
     {
       "shape": "Pentagonal",
@@ -125,63 +90,9 @@
         0.28537,
         0.01
       ],
-      "angle_z_deg": 2.7,
+      "angle_z_deg": -0.5,
       "area_px": 3163.0,
-      "confidence": 0.96
-    },
-    {
-      "shape": "FivePointed",
-      "shape_label": "five_pointed",
-      "color": "pink",
-      "color_label": "pink",
-      "pixel_center": [
-        141.0,
-        157.5
-      ],
-      "world_center_m": [
-        -0.13436,
-        0.28546,
-        0.01
-      ],
-      "angle_z_deg": -7.1,
-      "area_px": 3286.5,
-      "confidence": 0.96
-    },
-    {
-      "shape": "Pentagonal",
-      "shape_label": "pentagonal",
-      "color": "green",
-      "color_label": "green",
-      "pixel_center": [
-        405.0,
-        157.5
-      ],
-      "world_center_m": [
-        0.01678,
-        0.28546,
-        0.01
-      ],
-      "angle_z_deg": 2.5,
-      "area_px": 3191.0,
-      "confidence": 0.96
-    },
-    {
-      "shape": "FivePointed",
-      "shape_label": "five_pointed",
-      "color": "pink",
-      "color_label": "pink",
-      "pixel_center": [
-        259.3,
-        157.4
-      ],
-      "world_center_m": [
-        -0.06665,
-        0.28552,
-        0.01
-      ],
-      "angle_z_deg": -8.5,
-      "area_px": 3273.5,
-      "confidence": 0.96
+      "confidence": 0.99
     }
   ]
 }

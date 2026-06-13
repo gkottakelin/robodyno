@@ -225,19 +225,19 @@ MaterialTray {
 
 # Sample provincial-stage materials: 4 types, 2 identical pieces per box.
 Cube {
-  translation -0.13 0.21 0.016
+  translation -0.13 0.21 0.021
   name "cube_1"
 }
 Cube {
-  translation -0.065 0.21 0.016
+  translation -0.065 0.21 0.021
   name "cube_2"
 }
 Cuboid {
-  translation 0.015 0.21 0.016
+  translation 0.015 0.21 0.021
   name "cuboid_1"
 }
 Cuboid {
-  translation 0.08 0.21 0.016
+  translation 0.08 0.21 0.021
   name "cuboid_2"
 }
 FivePointed {
@@ -249,39 +249,39 @@ FivePointed {
   name "five_pointed_2"
 }
 Pentagonal {
-  translation 0.015 0.28 0.016
+  translation 0.015 0.28 0.021
   name "pentagonal_1"
 }
 Pentagonal {
-  translation 0.08 0.28 0.016
+  translation 0.08 0.28 0.021
   name "pentagonal_2"
 }
 
 # Extra material test templates.
 # Uncomment one or copy it onto a material box position when testing another shape.
-# Cylindrical {
-#   translation -0.13 0.21 0.016
-#   name "test_cylindrical"
-# }
-# Quincunx {
-#   translation -0.13 0.21 0.016
-#   name "test_quincunx"
-# }
-# Parallelogram {
-#   translation -0.13 0.21 0.016
-#   rotation 0 0 1 0.35
-#   name "test_parallelogram"
-# }
-# Cruciform {
-#   translation -0.13 0.21 0.016
-#   rotation 0 0 1 0.35
-#   name "test_cruciform"
-# }
-# Triangle {
-#   translation -0.13 0.21 0.016
-#   rotation 0 0 1 0.35
-#   name "test_triangle"
-# }
+Cylindrical {
+  translation -0.13 0.21 0.021
+  name "test_cylindrical"
+}
+Quincunx {
+  translation -0.13 0.21 0.021
+  name "test_quincunx"
+}
+Parallelogram {
+  translation -0.13 0.21 0.021
+  rotation 0 0 1 0.35
+  name "test_parallelogram"
+}
+Cruciform {
+  translation -0.13 0.21 0.021
+  rotation 0 0 1 0.35
+  name "test_cruciform"
+}
+Triangle {
+  translation -0.13 0.21 0.021
+  rotation 0 0 1 0.35
+  name "test_triangle"
+}
 
 # Robot and vision system.
 FourDofScaraRobot {

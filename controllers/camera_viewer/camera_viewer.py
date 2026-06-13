@@ -4,6 +4,7 @@
 import json
 import math
 import os
+import struct
 import time
 
 from controller import Robot
@@ -21,6 +22,7 @@ WINDOW_NAME = "top_camera_preview"
 BASE_DIR = os.path.dirname(__file__)
 SNAPSHOT_FILE = os.path.join(BASE_DIR, "camera_preview_latest.png")
 VISION_RESULT_FILE = os.path.join(BASE_DIR, "vision_latest.json")
+SHAPE_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "robocom_webots", "shapes"))
 
 # The Webots top camera image is opposite to the competition field view.
 # Detection, preview, snapshots, and exported coordinates all use this corrected image.
@@ -43,18 +45,8 @@ PICK_TABLE_SIZE_M = (0.300, 0.140)
 PICK_TABLE_Z_M = 0.010
 
 MIN_OBJECT_AREA_PX = 450
-AXIS_TIE_RADIUS_PX = 2.5
-AXIS_TIE_RADIUS_RATIO = 0.04
 
-UNDIRECTED_AXIS_SHAPES = (
-    "FivePointed",
-    "Pentagonal",
-    "Triangular",
-    "Quincunx",
-    "Cruciform",
-)
-
-ANGLE_FREE_SHAPES = ("Cylindrical", "Cube")
+ANGLE_FREE_SHAPES = ("Cylindrical",)
 
 COLOR_RANGES = {
     "red": [((0, 80, 70), (8, 255, 255)), ((170, 80, 70), (180, 255, 255))],
@@ -78,18 +70,18 @@ COLOR_LABEL = {
     "pink": "pink",
 }
 
-# The simulated materials currently use a fixed color-to-part mapping.
-# Geometry is still checked first when it is reliable.
-COLOR_TO_SHAPE = {
-    "red": ("Cuboid", "cuboid"),
-    "orange": ("Cube", "cube"),
-    "yellow": ("Cylindrical", "cylindrical"),
-    "green": ("Pentagonal", "pentagonal"),
-    "cyan": ("Quincunx", "quincunx"),
-    "blue": ("Parallelogram", "parallelogram"),
-    "purple": ("Cruciform", "cruciform"),
-    "pink": ("FivePointed", "five_pointed"),
-}
+SHAPE_TEMPLATE_SPECS = (
+    ("Cruciform", "cruciform", "cruciform.STL"),
+    ("Cube", "cube", "cube.STL"),
+    ("Cuboid", "cuboid", "cuboid.STL"),
+    ("Cylindrical", "cylindrical", "cylindrical.STL"),
+    ("FivePointed", "five_pointed", "five_pointed.STL"),
+    ("Parallelogram", "parallelogram", "parallelogram.STL"),
+    ("Pentagonal", "pentagonal", "pentagonal.STL"),
+    ("Quincunx", "quincunx", "quincunx.STL"),
+    ("Triangular", "triangular", "triangle.STL"),
+)
+SHAPE_TEMPLATE_CACHE = None
 
 
 def main():
@@ -197,14 +189,7 @@ def detect_blocks(frame):
             px, py = center
             world_x, world_y = pixel_to_world(px, py, calibration)
 
-            geometry_shape, geometry_label, geometry_conf = infer_shape_from_geometry(contour)
-            color_shape, color_shape_label = COLOR_TO_SHAPE[color_name]
-            if geometry_conf >= 0.70:
-                shape = geometry_shape
-                shape_label = geometry_label
-            else:
-                shape = color_shape
-                shape_label = color_shape_label
+            shape, shape_label, geometry_conf = infer_shape_from_geometry(contour)
 
             angle_deg = measure_angle_deg(shape, contour, center)
 
@@ -344,6 +329,263 @@ def contour_center(contour):
 
 
 def infer_shape_from_geometry(contour):
+    template_match = match_shape_templates(contour)
+    if template_match is not None:
+        return template_match
+    return infer_shape_from_basic_geometry(contour)
+
+
+def match_shape_templates(contour):
+    templates = get_shape_templates()
+    if not templates:
+        return None
+
+    contour_features = shape_feature_vector(contour)
+    scored = []
+    for template in templates:
+        try:
+            hu_score = cv2.matchShapes(contour, template["contour"], cv2.CONTOURS_MATCH_I1, 0.0)
+        except cv2.error:
+            continue
+        feature_score = feature_distance(contour_features, template["features"])
+        scored.append((hu_score + feature_score, hu_score, template))
+
+    if not scored:
+        return None
+
+    scored.sort(key=lambda item: item[0])
+    four_lobed_match = infer_four_lobed_shape_from_outline(contour, scored)
+    if four_lobed_match is not None:
+        return four_lobed_match
+
+    best_score, best_hu_score, best_template = scored[0]
+    second_score = scored[1][0] if len(scored) > 1 else best_score + 1.0
+    confidence = template_match_confidence(best_score, second_score, best_hu_score)
+    return (best_template["shape"], best_template["label"], confidence)
+
+
+def get_shape_templates():
+    global SHAPE_TEMPLATE_CACHE
+    if SHAPE_TEMPLATE_CACHE is not None:
+        return SHAPE_TEMPLATE_CACHE
+
+    templates = []
+    for shape, label, filename in SHAPE_TEMPLATE_SPECS:
+        path = os.path.join(SHAPE_DIR, filename)
+        triangles = read_stl_xy_triangles(path)
+        contour = projected_triangles_to_contour(triangles)
+        if contour is None:
+            continue
+        templates.append(
+            {
+                "shape": shape,
+                "label": label,
+                "contour": contour,
+                "features": shape_feature_vector(contour),
+            }
+        )
+
+    SHAPE_TEMPLATE_CACHE = templates
+    return SHAPE_TEMPLATE_CACHE
+
+
+def read_stl_xy_triangles(path):
+    if not os.path.exists(path):
+        return []
+
+    with open(path, "rb") as file:
+        data = file.read()
+
+    triangles = read_binary_stl_xy_triangles(data)
+    if triangles:
+        return triangles
+    return read_ascii_stl_xy_triangles(data)
+
+
+def read_binary_stl_xy_triangles(data):
+    if len(data) < 84:
+        return []
+
+    triangle_count = struct.unpack("<I", data[80:84])[0]
+    expected_size = 84 + triangle_count * 50
+    if triangle_count <= 0 or expected_size != len(data):
+        return []
+
+    triangles = []
+    offset = 84
+    for _ in range(triangle_count):
+        offset += 12
+        points = []
+        for _ in range(3):
+            x, y, _ = struct.unpack("<fff", data[offset : offset + 12])
+            points.append((x, y))
+            offset += 12
+        offset += 2
+        triangles.append(np.array(points, dtype=float))
+    return triangles
+
+
+def read_ascii_stl_xy_triangles(data):
+    triangles = []
+    points = []
+    for raw_line in data.decode("utf-8", "ignore").splitlines():
+        parts = raw_line.strip().split()
+        if len(parts) != 4 or parts[0].lower() != "vertex":
+            continue
+        try:
+            points.append((float(parts[1]), float(parts[2])))
+        except ValueError:
+            points = []
+            continue
+        if len(points) == 3:
+            triangles.append(np.array(points, dtype=float))
+            points = []
+    return triangles
+
+
+def projected_triangles_to_contour(triangles, template_size=180, padding=18):
+    if not triangles:
+        return None
+
+    all_points = np.vstack(triangles)
+    min_xy = np.min(all_points, axis=0)
+    max_xy = np.max(all_points, axis=0)
+    span_xy = max_xy - min_xy
+    max_span = float(np.max(span_xy))
+    if max_span <= 1e-9:
+        return None
+
+    scale = (template_size - 2.0 * padding) / max_span
+    mask = np.zeros((template_size, template_size), dtype=np.uint8)
+    for triangle in triangles:
+        if polygon_area(triangle) <= 1e-12:
+            continue
+        points = (triangle - min_xy) * scale + padding
+        points[:, 1] = template_size - points[:, 1]
+        cv2.fillConvexPoly(mask, np.round(points).astype(np.int32), 255)
+
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8), iterations=1)
+    contours = find_external_contours(mask)
+    if not contours:
+        return None
+    return max(contours, key=cv2.contourArea)
+
+
+def polygon_area(points):
+    x_values = points[:, 0]
+    y_values = points[:, 1]
+    return abs(float(np.dot(x_values, np.roll(y_values, -1)) - np.dot(y_values, np.roll(x_values, -1)))) * 0.5
+
+
+def shape_feature_vector(contour):
+    area = max(cv2.contourArea(contour), 1e-6)
+    perimeter = max(cv2.arcLength(contour, True), 1e-6)
+    hull = cv2.convexHull(contour)
+    hull_area = max(cv2.contourArea(hull), 1e-6)
+    approx = cv2.approxPolyDP(contour, 0.035 * perimeter, True)
+    ratio, skew = min_area_ratio_and_skew(contour, approx)
+    return {
+        "circularity": 4.0 * math.pi * area / (perimeter * perimeter),
+        "solidity": area / hull_area,
+        "ratio": ratio,
+        "skew": skew / 90.0,
+        "defects": min(count_convexity_defects(contour), 8) / 8.0,
+        "radial": radial_variation(contour),
+    }
+
+
+def radial_variation(contour):
+    center = contour_center(contour)
+    if center is None:
+        return 0.0
+    cx, cy = center
+    points = contour.reshape(-1, 2).astype(float)
+    radii = np.linalg.norm(points - np.array((cx, cy)), axis=1)
+    mean_radius = float(np.mean(radii))
+    if mean_radius <= 1e-6:
+        return 0.0
+    return float(np.std(radii) / mean_radius)
+
+
+def feature_distance(left, right):
+    return (
+        0.22 * abs(left["circularity"] - right["circularity"])
+        + 0.30 * abs(left["solidity"] - right["solidity"])
+        + 0.05 * abs(left["ratio"] - right["ratio"])
+        + 0.08 * abs(left["skew"] - right["skew"])
+        + 0.20 * abs(left["defects"] - right["defects"])
+        + 0.25 * abs(left["radial"] - right["radial"])
+    )
+
+
+def template_match_confidence(best_score, second_score, best_hu_score):
+    separation = max(0.0, second_score - best_score) / max(second_score, 1e-6)
+    quality = 1.0 / (1.0 + 8.0 * max(best_hu_score, 0.0))
+    confidence = 0.50 + 0.25 * separation + 0.25 * quality
+    return round(max(0.50, min(0.99, confidence)), 2)
+
+
+def infer_four_lobed_shape_from_outline(contour, scored_templates):
+    top_shapes = {item[2]["shape"] for item in scored_templates[:3]}
+    if "Cruciform" not in top_shapes and "Quincunx" not in top_shapes:
+        return None
+
+    defects = count_convexity_defects(contour)
+    if defects < 3:
+        return None
+
+    rectilinear_score = rectilinear_edge_score(contour)
+    if rectilinear_score >= 0.62:
+        return ("Cruciform", "cruciform", 0.86)
+    return ("Quincunx", "quincunx", 0.84)
+
+
+def rectilinear_edge_score(contour):
+    perimeter = cv2.arcLength(contour, True)
+    if perimeter <= 1e-6:
+        return 0.0
+
+    approx = cv2.approxPolyDP(contour, 0.012 * perimeter, True).reshape(-1, 2).astype(float)
+    if len(approx) < 4:
+        return 0.0
+
+    angles = []
+    lengths = []
+    for index in range(len(approx)):
+        vector = approx[(index + 1) % len(approx)] - approx[index]
+        length = float(np.linalg.norm(vector))
+        if length < 1.5:
+            continue
+        dx_world, dy_world = image_vector_to_world(vector)
+        angle = normalize_angle_180(math.degrees(math.atan2(dy_world, dx_world)))
+        if angle < 0.0:
+            angle += 180.0
+        angles.append(angle)
+        lengths.append(length)
+
+    if not angles:
+        return 0.0
+
+    angles = np.array(angles)
+    lengths = np.array(lengths)
+    total_length = float(np.sum(lengths))
+    best_score = 0.0
+    for candidate_angle in np.linspace(0.0, 89.5, 180):
+        diffs = np.minimum(
+            axis_angle_difference_180(angles, candidate_angle),
+            axis_angle_difference_180(angles, candidate_angle + 90.0),
+        )
+        score = float(np.sum(lengths[diffs <= 12.0]) / total_length)
+        best_score = max(best_score, score)
+    return best_score
+
+
+def axis_angle_difference_180(angles, target_angle):
+    diff = np.abs((angles - target_angle + 90.0) % 180.0 - 90.0)
+    return diff
+
+
+def infer_shape_from_basic_geometry(contour):
     area = cv2.contourArea(contour)
     perimeter = cv2.arcLength(contour, True)
     if perimeter <= 1e-6 or area <= 1e-6:
@@ -437,63 +679,135 @@ def count_convexity_defects(contour):
 def measure_angle_deg(shape, contour, center):
     if shape in ANGLE_FREE_SHAPES:
         return 0.0
-    if shape in UNDIRECTED_AXIS_SHAPES:
-        return center_longest_axis_angle_deg(contour, center)
-    return rect_like_angle_deg(contour)
+    if shape in ("Cube", "Cuboid"):
+        return rect_like_angle_deg(contour)
+    if shape == "Cruciform":
+        return nearest_point_equivalent_angle_deg(contour, center, 90.0)
+
+    equivalent_periods = {
+        "Parallelogram": 180.0,
+        "Quincunx": 90.0,
+        "Pentagonal": 72.0,
+        "FivePointed": 72.0,
+        "Triangular": 120.0,
+    }
+    period = equivalent_periods.get(shape)
+    if period is not None:
+        return farthest_point_equivalent_angle_deg(contour, center, period)
+    return farthest_point_angle_deg(contour, center)
 
 
-def center_longest_axis_angle_deg(contour, center):
+def farthest_point_angle_deg(contour, center):
+    return extremum_point_angle_deg(contour, center, "farthest")
+
+
+def farthest_point_equivalent_angle_deg(contour, center, period_deg):
+    angle = farthest_point_angle_deg(contour, center)
+    return min_abs_equivalent_angle_deg(angle, period_deg)
+
+
+def nearest_point_equivalent_angle_deg(contour, center, period_deg):
+    angle = extremum_point_angle_deg(contour, center, "nearest")
+    return min_abs_equivalent_angle_deg(angle, period_deg)
+
+
+def extremum_point_angle_deg(contour, center, mode):
     cx, cy = center
     points = contour.reshape(-1, 2).astype(float)
+    if len(points) == 0:
+        return 0.0
+
     vectors = points - np.array((cx, cy))
     radii = np.linalg.norm(vectors, axis=1)
-    if len(radii) == 0:
+    if len(radii) == 0 or float(np.max(radii)) <= 1e-6:
         return 0.0
 
-    max_radius = float(np.max(radii))
-    if max_radius <= 1e-6:
-        return 0.0
+    if mode == "nearest":
+        index = int(np.argmin(radii))
+    else:
+        index = int(np.argmax(radii))
+    vector = vectors[index]
+    return directed_angle_from_image_vector(vector)
 
-    tolerance = max(AXIS_TIE_RADIUS_PX, max_radius * AXIS_TIE_RADIUS_RATIO)
-    candidates = []
-    for vector, radius in zip(vectors, radii):
-        if radius < max_radius - tolerance:
-            continue
-        dx_world = float(vector[0])
-        dy_world = float(-vector[1])
-        if dx_world > 0.0:
-            dx_world = -dx_world
-            dy_world = -dy_world
-        candidates.append((dx_world, dy_world, float(radius)))
 
-    if not candidates:
-        dx_world = float(vectors[int(np.argmax(radii))][0])
-        dy_world = float(-vectors[int(np.argmax(radii))][1])
-        if dx_world > 0.0:
-            dx_world = -dx_world
-            dy_world = -dy_world
-        candidates.append((dx_world, dy_world, max_radius))
+def min_abs_equivalent_angle_deg(angle, period_deg):
+    if period_deg <= 0.0:
+        return normalize_angle_180_prefer_positive(angle)
 
-    # Tie break: first prefer the axis direction that points most to the left,
-    # then prefer the longest radius. This keeps regular polygons from jumping
-    # between equivalent vertices when the contour has tiny pixel noise.
-    dx_world, dy_world, _ = min(candidates, key=lambda item: (item[0], -item[2], abs(item[1])))
-    directed_angle = math.degrees(math.atan2(dy_world, dx_world))
-    return normalize_symmetric_90(directed_angle)
+    count = max(1, int(round(360.0 / period_deg)))
+    candidates = [
+        normalize_angle_180_prefer_positive(angle + index * period_deg)
+        for index in range(count)
+    ]
+    return min(candidates, key=lambda value: (abs(value), 0 if value >= 0.0 else 1))
 
 
 def rect_like_angle_deg(contour):
     rect = cv2.minAreaRect(contour)
-    (width, height) = rect[1]
-    angle = rect[2]
+    box = cv2.boxPoints(rect).astype(float)
+    box = sort_points_clockwise(box)
 
-    if width < height:
-        image_angle = angle + 90.0
+    edges = []
+    for index in range(4):
+        vector = box[(index + 1) % 4] - box[index]
+        length = float(np.linalg.norm(vector))
+        edges.append((vector, length))
+
+    max_length = max(length for _, length in edges)
+    min_length = max(min(length for _, length in edges), 1e-6)
+    if max_length / min_length < 1.10:
+        candidates = edges
     else:
-        image_angle = angle
+        tolerance = max(1.0, max_length * 0.04)
+        candidates = [item for item in edges if item[1] >= max_length - tolerance]
 
-    world_angle = normalize_angle_180(-image_angle)
-    return normalize_symmetric_90(world_angle)
+    vector, length = min(candidates, key=lambda item: axis_priority_key(item[0], item[1]))
+    return axis_angle_from_image_vector(vector)
+
+
+def axis_priority_key(image_vector, length):
+    dx_world, dy_world = preferred_world_vector(image_vector)
+    angle = normalize_symmetric_90(math.degrees(math.atan2(dy_world, dx_world)))
+    return (abs(angle), -length)
+
+
+def axis_angle_from_image_vector(image_vector):
+    dx_world, dy_world = preferred_world_vector(image_vector)
+    directed_angle = math.degrees(math.atan2(dy_world, dx_world))
+    return normalize_symmetric_90(directed_angle)
+
+
+def directed_angle_from_image_vector(image_vector):
+    dx_world, dy_world = image_vector_to_world(image_vector)
+    directed_angle = math.degrees(math.atan2(dy_world, dx_world))
+    return normalize_angle_180_prefer_positive(directed_angle)
+
+
+def image_vector_to_world(image_vector):
+    return float(image_vector[0]), float(-image_vector[1])
+
+
+def preferred_world_axis(world_axis):
+    dx_world = float(world_axis[0])
+    dy_world = float(world_axis[1])
+    if dx_world > 1e-6:
+        dx_world = -dx_world
+        dy_world = -dy_world
+    elif abs(dx_world) <= 1e-6 and dy_world < 0.0:
+        dy_world = -dy_world
+    return dx_world, dy_world
+
+
+def preferred_world_vector(image_vector):
+    return preferred_world_axis(image_vector_to_world(image_vector))
+
+
+def normalize_angle_180_prefer_positive(angle):
+    while angle > 180.0:
+        angle -= 360.0
+    while angle <= -180.0:
+        angle += 360.0
+    return angle
 
 
 def normalize_angle_180(angle):
@@ -506,9 +820,9 @@ def normalize_angle_180(angle):
 
 def normalize_symmetric_90(angle):
     angle = normalize_angle_180(angle)
-    while angle >= 90.0:
+    while angle > 90.0:
         angle -= 180.0
-    while angle < -90.0:
+    while angle <= -90.0:
         angle += 180.0
     return angle
 
@@ -524,7 +838,8 @@ def write_vision_result(detections, calibration, sim_time):
         "sim_time_s": round(sim_time, 3),
         "timestamp_unix": round(time.time(), 3),
         "image_transform": IMAGE_TRANSFORM_LABEL,
-        "angle_rule": "center_longest_axis_left_priority_min_x_angle",
+        "shape_rule": "geometry_only_official_stl_template_match",
+        "angle_rule": "circle_zero_cube_cuboid_rect_axis_cruciform_nearest_equivalent_else_farthest_equivalent_min_abs_x_angle",
         "coordinate_rule": {
             "x_m": "table_center_x + (pixel_x - table_center_pixel_x) * meters_per_pixel_x",
             "y_m": "table_center_y - (pixel_y - table_center_pixel_y) * meters_per_pixel_y",
@@ -577,15 +892,11 @@ def draw_overlay(frame, fps, detections, calibration):
         cv2.circle(frame, (cx, cy), 5, color, -1)
         axis_len = 34
         radians = math.radians(-angle)
-        endpoint_a = (
+        endpoint = (
             int(round(cx + axis_len * math.cos(radians))),
             int(round(cy + axis_len * math.sin(radians))),
         )
-        endpoint_b = (
-            int(round(cx - axis_len * math.cos(radians))),
-            int(round(cy - axis_len * math.sin(radians))),
-        )
-        cv2.line(frame, endpoint_a, endpoint_b, color, 2)
+        cv2.arrowedLine(frame, (cx, cy), endpoint, color, 2, tipLength=0.25)
 
         block_w = 190
         block_h = 68
