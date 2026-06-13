@@ -1,0 +1,44 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料托盘.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO MaterialTray [
+  field SFVec3f     translation   0 0 0.0
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "MaterialTray"
+  field SFBool      castShadows   FALSE
+  field SFBool      locked        TRUE
+  field SFColor     color         0.8 0.8 0.8
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    locked IS locked
+    children [
+      DEF trayb Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/tray.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject Pose {
+      translation 0 0 0.0015
+      children [
+        Box {
+          size 0.175 0.175 0.0025
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,59 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料-十字形体.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO Cruciform [
+  field SFVec3f     translation   0 0 0.015
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "Cruciform"
+  field SFBool      castShadows   FALSE
+  field SFColor     color         0.7 0.3 1.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      DEF crub Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/cruciform.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject Group {
+      children [
+        Pose {
+          translation 0 0 0.0075
+          children [
+            Box {
+              size 0.0142 0.0372 0.0148
+            }
+          ]
+        }
+        Pose {
+          translation 3.17068e-09 -2.89267e-12 0.0075
+          rotation 0 0 1 1.57
+          children [
+            Box {
+              size 0.0142 0.0372 0.0148
+            }
+          ]
+        }
+      ]
+    }
+    physics Physics {
+      density -1
+      mass 0.01
+    }
+  }
+}

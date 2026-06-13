@@ -1,0 +1,27 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "D:/Robodyno/1A/仿真工程文件/robodyno_webots/objects/BaseBoard.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.3698477531784122 0.3559232999935323 0.8582139849656344 1.7421777208249383
+  position -0.08663934451356091 -0.7798567775355761 0.9400580166696497
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+BaseBoard {
+  translation 0 0 0
+}
+BaseBoard {
+  translation 0 0.35 0
+  name "BaseBoard(1)"
+}
+BaseBoard {
+  translation -0.35 0 0
+  name "BaseBoard(2)"
+}

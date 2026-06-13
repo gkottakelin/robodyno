@@ -1,0 +1,86 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料-五边形体.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO Pentagonal [
+  field SFVec3f     translation   0 0 0.015
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "Pentagonal"
+  field SFBool      castShadows   FALSE
+  field SFColor     color         0.0 0.6 0.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      DEF pentagonalb Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/pentagonal.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject Group {
+      children [
+        Pose {
+          translation -0.0025 0 0.0075
+          children [
+            Box {
+              size 0.028 0.024 0.015
+            }
+          ]
+        }
+        Pose {
+          translation -0.0007 -0.0024 0.0075
+          rotation 0 0 1 1.26
+          children [
+            Box {
+              size 0.028 0.024 0.015
+            }
+          ]
+        }
+        Pose {
+          translation 0.002 -0.0014 0.0075
+          rotation 0 0 1 2.523
+          children [
+            Box {
+              size 0.028 0.024 0.015
+            }
+          ]
+        }
+        Pose {
+          translation 0.002 0.0015 0.0075
+          rotation 0 0 1 -2.511
+          children [
+            Box {
+              size 0.028 0.024 0.015
+            }
+          ]
+        }
+        Pose {
+          translation -0.0007 0.0024 0.0075
+          rotation 0 0 -1 1.253
+          children [
+            Box {
+              size 0.028 0.024 0.015
+            }
+          ]
+        }
+      ]
+    }
+    physics Physics {
+      density -1
+      mass 0.01
+    }
+  }
+}

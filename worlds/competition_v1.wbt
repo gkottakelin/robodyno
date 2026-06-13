@@ -1,0 +1,33 @@
+#VRML_SIM R2023b utf8
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "../objects/BaseBoard.proto"
+EXTERNPROTO "../robots/FourDofScaraRobot.proto"
+EXTERNPROTO "../endEffector/Vacuum_Gripper.proto"
+EXTERNPROTO "../camera/RobodynoCamera.proto"
+
+EXTERNPROTO "../robocom_webots/MaterialBox.proto"
+EXTERNPROTO "../robocom_webots/MaterialTray.proto"
+EXTERNPROTO "../robocom_webots/Cube.proto"
+EXTERNPROTO "../robocom_webots/Cuboid.proto"
+EXTERNPROTO "../robocom_webots/Triangle.proto"
+EXTERNPROTO "../robocom_webots/Cylindrical.proto"
+EXTERNPROTO "../robocom_webots/Cruciform.proto"
+EXTERNPROTO "../robocom_webots/FivePointed.proto"
+EXTERNPROTO "../robocom_webots/Pentagonal.proto"
+EXTERNPROTO "../robocom_webots/Parallelogram.proto"
+EXTERNPROTO "../robocom_webots/Quincunx.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.5773 0.5773 0.5773 2.0944
+  position 0 0 10
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+}

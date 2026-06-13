@@ -1,0 +1,220 @@
+#VRML_SIM R2023b utf8
+
+EXTERNPROTO "../objects/BaseBoard.proto"
+EXTERNPROTO "../robots/FourDofScaraRobot.proto"
+EXTERNPROTO "../endEffector/Vacuum_Gripper.proto"
+EXTERNPROTO "../camera/RobodynoCamera.proto"
+
+EXTERNPROTO "../robocom_webots/MaterialBox.proto"
+EXTERNPROTO "../robocom_webots/MaterialTray.proto"
+EXTERNPROTO "../robocom_webots/Cube.proto"
+EXTERNPROTO "../robocom_webots/Cuboid.proto"
+EXTERNPROTO "../robocom_webots/FivePointed.proto"
+EXTERNPROTO "../robocom_webots/Pentagonal.proto"
+
+WorldInfo {
+  basicTimeStep 16
+  contactProperties [
+    ContactProperties {
+      material1 "default"
+      material2 "default"
+      coulombFriction [
+        0.8
+      ]
+    }
+  ]
+}
+
+Viewpoint {
+  orientation -0.577350 0.577350 0.577350 2.094395
+  position 0.05 -0.15 1.15
+  description "Province scene overview"
+}
+
+Background {
+  skyColor [
+    0.78 0.82 0.88
+  ]
+}
+
+DirectionalLight {
+  direction -0.4 -0.5 -1
+  intensity 1.8
+  castShadows TRUE
+}
+
+Solid {
+  translation -0.12 0.12 -0.016
+  name "floor"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.86 0.86 0.82
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 1.1 1.1 0.01
+      }
+    }
+  ]
+  boundingObject Box {
+    size 1.1 1.1 0.01
+  }
+}
+
+# Base boards. Top surfaces are at Z = 0.
+BaseBoard {
+  translation 0 0 -0.01
+  name "base_board_robot"
+  locked TRUE
+}
+BaseBoard {
+  translation 0 0.35 -0.01
+  name "base_board_pick"
+  locked TRUE
+}
+BaseBoard {
+  translation -0.35 0 -0.01
+  name "base_board_place"
+  locked TRUE
+}
+
+# Acrylic pick table, 300 mm x 140 mm x 10 mm.
+Solid {
+  translation -0.025 0.245 0.005
+  name "pick_table"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.64 0.92 0.68
+        transparency 0.35
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box {
+        size 0.3 0.14 0.01
+      }
+    }
+  ]
+  boundingObject Box {
+    size 0.3 0.14 0.01
+  }
+}
+
+# Acrylic placing table, 350 mm x 175 mm x 10 mm.
+Solid {
+  translation -0.2625 0 0.005
+  name "place_table"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.58 0.88
+        transparency 0.35
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box {
+        size 0.175 0.35 0.01
+      }
+    }
+  ]
+  boundingObject Box {
+    size 0.175 0.35 0.01
+  }
+}
+
+# Four material boxes on the pick table.
+MaterialBox {
+  translation -0.0975 0.21 0.01
+  name "material_box_1"
+  locked TRUE
+}
+MaterialBox {
+  translation 0.0475 0.21 0.01
+  name "material_box_2"
+  locked TRUE
+}
+MaterialBox {
+  translation -0.0975 0.28 0.01
+  name "material_box_3"
+  locked TRUE
+}
+MaterialBox {
+  translation 0.0475 0.28 0.01
+  name "material_box_4"
+  locked TRUE
+}
+
+# Two placing trays on the placing table.
+MaterialTray {
+  translation -0.2625 0.0875 0.01
+  name "material_tray_top"
+  locked TRUE
+}
+MaterialTray {
+  translation -0.2625 -0.0875 0.01
+  name "material_tray_bottom"
+  locked TRUE
+}
+
+# Sample provincial-stage materials: 4 types, 2 identical pieces per box.
+Cube {
+  translation -0.13 0.21 0.016
+  name "cube_1"
+}
+Cube {
+  translation -0.065 0.21 0.016
+  name "cube_2"
+}
+Cuboid {
+  translation 0.015 0.21 0.016
+  name "cuboid_1"
+}
+Cuboid {
+  translation 0.08 0.21 0.016
+  name "cuboid_2"
+}
+FivePointed {
+  translation -0.13 0.28 0.022
+  name "five_pointed_1"
+}
+FivePointed {
+  translation -0.065 0.28 0.022
+  name "five_pointed_2"
+}
+Pentagonal {
+  translation 0.015 0.28 0.016
+  name "pentagonal_1"
+}
+Pentagonal {
+  translation 0.08 0.28 0.016
+  name "pentagonal_2"
+}
+
+# Robot and vision system.
+FourDofScaraRobot {
+  translation 0 0 0
+  rotation 0 0 1 0
+  name "scara"
+  sliderInitPose 0.25
+  upperarmLength 0.125
+  forearmLength 0.125
+  controller ""
+  endChildren [
+    Vacuum_Gripper {
+      name "vacuum_gripper"
+      vacuum_id "0x21"
+    }
+  ]
+}
+
+RobodynoCamera {
+  translation -0.025 0.245 0.45
+  rotation 0.707 0.707 0 3.14159
+  name "top_camera"
+  cameraId "camera"
+  width 640
+  height 480
+  controller "camera_viewer"
+}

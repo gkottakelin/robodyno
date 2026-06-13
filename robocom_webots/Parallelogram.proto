@@ -1,0 +1,39 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料-平行四边形体.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO Parallelogram [
+  field SFVec3f     translation   0 0 0.015
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "Parallelogram"
+  field SFBool      castShadows   FALSE
+  field SFColor     color         0.0 0.3 1.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      DEF parallelogramb Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/parallelogram.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject USE parallelogramb
+    physics Physics {
+      density -1
+      mass 0.01
+    }
+  }
+}

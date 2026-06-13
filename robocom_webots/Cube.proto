@@ -1,0 +1,46 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料-正方形体.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO Cube [
+  field SFVec3f     translation   0 0 0.015
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "Cube"
+  field SFBool      castShadows   FALSE
+  field SFColor     color         1.0 0.3 0.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      DEF cubeb Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/cube.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject Pose {
+      translation 0 0 0.0075
+      children [
+        Box {
+          size 0.04 0.04 0.015
+        }
+      ]
+    }
+    physics Physics {
+      density -1
+      mass 0.01
+    }
+  }
+}

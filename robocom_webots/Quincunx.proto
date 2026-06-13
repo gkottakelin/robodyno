@@ -1,0 +1,88 @@
+#VRML_SIM R2023b utf8
+# 睿抗-物料-梅花形体.
+# license: Creative Commons Attribution 4.0 International License.
+# license url: https://creativecommons.org/licenses/by/4.0/legalcode
+
+PROTO Quincunx [
+  field SFVec3f     translation   0 0 0.015
+  field SFRotation  rotation      0 0 1 0
+  field SFString    name          "Quincunx"
+  field SFBool      castShadows   FALSE
+  field SFColor     color         0.3 1.0 1.0
+]
+{
+  Solid {
+    translation IS translation
+    rotation IS rotation
+    name IS name
+    children [
+      DEF quincunxb Shape {
+        appearance Appearance {
+          material Material {
+            diffuseColor IS color
+          }
+        }
+        geometry Mesh {
+          url [
+            "./shapes/quincunx.STL"
+          ]
+        }
+        castShadows IS castShadows
+      }
+    ]
+    boundingObject Group {
+      children [
+        Pose {
+          translation 0.0056 -0.0121 0.0075
+          children [
+            Cylinder {
+              height 0.015
+              radius 0.01
+            }
+          ]
+        }
+        Pose {
+          translation -0.012 -0.0052 0.0075
+          children [
+            Cylinder {
+              height 0.015
+              radius 0.01
+            }
+          ]
+        }
+        Pose {
+          translation 0.012 0.0052 0.0075
+          children [
+            Cylinder {
+              height 0.015
+              radius 0.01
+            }
+          ]
+        }
+        Pose {
+          translation -0.005 0.0121 0.0075
+          children [
+            Cylinder {
+              height 0.015
+              radius 0.01
+            }
+          ]
+        }
+        Pose {
+          translation 0 0 0.0075
+          rotation 0 0 -1 0
+          children [
+            Cylinder {
+              height 0.015
+              radius 0.0165
+            }
+          ]
+        }
+      ]
+    }
+    physics Physics {
+      density -1
+      mass 0.01
+    }
+  }
+}
