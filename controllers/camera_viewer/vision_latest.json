@@ -1,6 +1,6 @@
 {
-  "sim_time_s": 82.816,
-  "timestamp_unix": 1781381031.58,
+  "sim_time_s": 35.84,
+  "timestamp_unix": 1781433363.699,
   "image_transform": "rotate_180",
   "shape_rule": "geometry_only_official_stl_template_match",
   "angle_rule": "circle_zero_cube_cuboid_rect_axis_cruciform_nearest_equivalent_else_farthest_equivalent_min_abs_x_angle",
@@ -41,58 +41,22 @@
   },
   "objects": [
     {
-      "shape": "Quincunx",
-      "shape_label": "quincunx",
-      "color": "cyan",
-      "color_label": "cyan",
-      "pixel_center": [
-        272.2,
-        285.1
-      ],
-      "world_center_m": [
-        -0.05922,
-        0.21376,
-        0.01
-      ],
-      "angle_z_deg": 24.5,
-      "area_px": 4520.0,
-      "confidence": 0.97
-    },
-    {
-      "shape": "Parallelogram",
-      "shape_label": "parallelogram",
-      "color": "blue",
-      "color_label": "blue",
-      "pixel_center": [
-        411.8,
-        283.3
-      ],
-      "world_center_m": [
-        0.02067,
-        0.21477,
-        0.01
-      ],
-      "angle_z_deg": -40.3,
-      "area_px": 5020.5,
-      "confidence": 0.99
-    },
-    {
       "shape": "Pentagonal",
       "shape_label": "pentagonal",
       "color": "green",
       "color_label": "green",
       "pixel_center": [
-        523.4,
+        523.3,
         157.7
       ],
       "world_center_m": [
-        0.08459,
-        0.28537,
+        0.0845,
+        0.28539,
         0.01
       ],
-      "angle_z_deg": -0.5,
-      "area_px": 3163.0,
-      "confidence": 0.99
+      "angle_z_deg": -11.2,
+      "area_px": 3181.0,
+      "confidence": 0.98
     }
   ]
 }

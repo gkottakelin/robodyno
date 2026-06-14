@@ -45,6 +45,9 @@ PICK_TABLE_SIZE_M = (0.300, 0.140)
 PICK_TABLE_Z_M = 0.010
 
 MIN_OBJECT_AREA_PX = 450
+PENTAGONAL_CORNER_LOG = True
+PENTAGONAL_CORNER_LOG_INTERVAL_S = 0.1
+PENTAGONAL_CORNER_LAST_LOG_TIME = 0.0
 
 ANGLE_FREE_SHAPES = ("Cylindrical",)
 
@@ -354,14 +357,37 @@ def match_shape_templates(contour):
         return None
 
     scored.sort(key=lambda item: item[0])
-    four_lobed_match = infer_four_lobed_shape_from_outline(contour, scored)
-    if four_lobed_match is not None:
-        return four_lobed_match
 
     best_score, best_hu_score, best_template = scored[0]
+
+    if should_try_four_lobed_override(contour, scored):
+        four_lobed_match = infer_four_lobed_shape_from_outline(contour, scored)
+        if four_lobed_match is not None:
+            return refine_detected_shape(contour, scored, four_lobed_match)
+
+    if should_try_quincunx_pentagonal_refine(scored):
+        corner_match = infer_quincunx_or_pentagonal_from_corners(contour, scored)
+        if corner_match is not None:
+            return refine_detected_shape(contour, scored, corner_match)
+
     second_score = scored[1][0] if len(scored) > 1 else best_score + 1.0
     confidence = template_match_confidence(best_score, second_score, best_hu_score)
-    return (best_template["shape"], best_template["label"], confidence)
+    return refine_detected_shape(contour, scored, (best_template["shape"], best_template["label"], confidence))
+
+
+def should_try_four_lobed_override(contour, scored_templates):
+    best_shape = scored_templates[0][2]["shape"]
+    if best_shape in ("Cruciform", "Quincunx"):
+        return True
+    if best_shape == "FivePointed":
+        return False
+    if best_shape != "Pentagonal":
+        return False
+
+    top_shapes = {item[2]["shape"] for item in scored_templates[:3]}
+    if "Cruciform" not in top_shapes and "Quincunx" not in top_shapes:
+        return False
+    return count_convexity_defects(contour) == 4
 
 
 def get_shape_templates():
@@ -523,6 +549,472 @@ def template_match_confidence(best_score, second_score, best_hu_score):
     quality = 1.0 / (1.0 + 8.0 * max(best_hu_score, 0.0))
     confidence = 0.50 + 0.25 * separation + 0.25 * quality
     return round(max(0.50, min(0.99, confidence)), 2)
+
+
+def refine_detected_shape(contour, scored_templates, shape_match):
+    shape_match = refine_quincunx_to_cube_or_cuboid(contour, scored_templates, shape_match)
+    return refine_cube_or_cuboid_by_ratio(contour, scored_templates, shape_match)
+
+
+def refine_cube_or_cuboid_by_ratio(contour, scored_templates, shape_match):
+    if shape_match[0] not in ("Cube", "Cuboid"):
+        return shape_match
+
+    ratio = contour_min_area_ratio(contour)
+    if ratio >= 1.18:
+        return ("Cuboid", "cuboid", 0.88)
+    if ratio <= 1.10:
+        return ("Cube", "cube", 0.88)
+
+    return choose_cube_or_cuboid_from_weights(scored_templates, {"ratio": ratio})
+
+
+def refine_quincunx_to_cube_or_cuboid(contour, scored_templates, shape_match):
+    if shape_match[0] != "Quincunx":
+        return shape_match
+
+    rectangular_profile = rectangular_geometry_analysis(contour)
+    if not is_rectangular_block_candidate(rectangular_profile):
+        return shape_match
+
+    return choose_cube_or_cuboid_from_weights(scored_templates, rectangular_profile)
+
+
+def rectangular_geometry_analysis(contour):
+    samples, perimeter = dense_contour_samples(contour, 240)
+    empty_profile = {
+        "sample_count": 0,
+        "edge_count": 0,
+        "straight_edge_count": 0,
+        "right_angle_count": 0,
+        "corner_angles_deg": [],
+        "edge_linearity": 0.0,
+        "ratio": 1.0,
+    }
+    if perimeter <= 1e-6 or len(samples) < 200:
+        return empty_profile
+
+    ratio = contour_min_area_ratio(contour)
+    straight_segments = dense_straight_edge_segments(samples, perimeter)
+    right_angles = dense_right_angle_corners(samples, perimeter)
+    straight_sample_count = sum(len(segment) for segment in straight_segments)
+    edge_linearity = straight_sample_count / max(len(samples), 1)
+
+    return {
+        "sample_count": len(samples),
+        "edge_count": len(straight_segments),
+        "straight_edge_count": len(straight_segments),
+        "right_angle_count": len(right_angles),
+        "corner_angles_deg": [round(angle, 1) for angle in right_angles],
+        "edge_linearity": edge_linearity,
+        "ratio": ratio,
+    }
+
+
+def dense_contour_samples(contour, min_sample_count):
+    points = contour.reshape(-1, 2).astype(float)
+    if len(points) < 2:
+        return points, 0.0
+
+    filtered = [points[0]]
+    for point in points[1:]:
+        if float(np.linalg.norm(point - filtered[-1])) > 1e-6:
+            filtered.append(point)
+    if len(filtered) > 1 and float(np.linalg.norm(filtered[0] - filtered[-1])) <= 1e-6:
+        filtered.pop()
+    if len(filtered) < 2:
+        return np.array(filtered, dtype=float), 0.0
+
+    points = np.array(filtered, dtype=float)
+    closed_points = np.vstack((points, points[0]))
+    segment_vectors = closed_points[1:] - closed_points[:-1]
+    segment_lengths = np.linalg.norm(segment_vectors, axis=1)
+    valid = segment_lengths > 1e-6
+    if not np.any(valid):
+        return points, 0.0
+
+    start_points = closed_points[:-1][valid]
+    segment_vectors = segment_vectors[valid]
+    segment_lengths = segment_lengths[valid]
+    perimeter = float(np.sum(segment_lengths))
+    if perimeter <= 1e-6:
+        return points, 0.0
+
+    sample_count = max(min_sample_count, int(math.ceil(perimeter)))
+    distances = np.linspace(0.0, perimeter, sample_count, endpoint=False)
+    cumulative = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+    segment_indices = np.searchsorted(cumulative, distances, side="right") - 1
+    segment_indices = np.clip(segment_indices, 0, len(segment_lengths) - 1)
+    local_distances = distances - cumulative[segment_indices]
+    t_values = local_distances / segment_lengths[segment_indices]
+    samples = start_points[segment_indices] + segment_vectors[segment_indices] * t_values[:, None]
+    return samples, perimeter
+
+
+def dense_straight_edge_segments(samples, perimeter):
+    local_angles = dense_local_corner_angles(samples, max(5, len(samples) // 60))
+    straight_flags = [angle >= 165.0 for angle in local_angles]
+    clusters = cyclic_true_clusters(straight_flags)
+    min_cluster_size = max(14, len(samples) // 14)
+    rms_limit = max(1.8, 0.008 * perimeter)
+    max_limit = max(3.2, 0.016 * perimeter)
+
+    straight_segments = []
+    for cluster in clusters:
+        if len(cluster) < min_cluster_size:
+            continue
+        rms_error, max_error = line_fit_errors(samples[np.array(cluster)])
+        if rms_error <= rms_limit and max_error <= max_limit:
+            straight_segments.append(cluster)
+    return straight_segments
+
+
+def dense_right_angle_corners(samples, perimeter):
+    angle_step = max(5, len(samples) // 48)
+    local_angles = dense_local_corner_angles(samples, angle_step)
+    right_angle_flags = [80.0 <= angle <= 100.0 for angle in local_angles]
+    clusters = cyclic_true_clusters(right_angle_flags)
+    angles = []
+    for cluster in clusters:
+        center_index = cluster[len(cluster) // 2]
+        if not dense_corner_has_straight_arms(samples, center_index, angle_step, perimeter):
+            continue
+        angles.append(min(local_angles[index] for index in cluster))
+    return angles
+
+
+def dense_local_corner_angles(samples, step):
+    angles = []
+    sample_count = len(samples)
+    for index in range(sample_count):
+        prev_point = samples[(index - step) % sample_count]
+        point = samples[index]
+        next_point = samples[(index + step) % sample_count]
+        angles.append(point_corner_angle_deg(prev_point, point, next_point))
+    return angles
+
+
+def dense_corner_has_straight_arms(samples, center_index, angle_step, perimeter):
+    sample_count = len(samples)
+    arm_span = max(12, sample_count // 28)
+    prev_indices = [
+        (center_index - offset) % sample_count
+        for offset in range(arm_span, angle_step, -1)
+    ]
+    next_indices = [
+        (center_index + offset) % sample_count
+        for offset in range(angle_step + 1, arm_span + 1)
+    ]
+    if len(prev_indices) < 5 or len(next_indices) < 5:
+        return False
+
+    rms_limit = max(1.8, 0.008 * perimeter)
+    max_limit = max(3.2, 0.016 * perimeter)
+    prev_rms, prev_max = line_fit_errors(samples[np.array(prev_indices)])
+    next_rms, next_max = line_fit_errors(samples[np.array(next_indices)])
+    return (
+        prev_rms <= rms_limit
+        and prev_max <= max_limit
+        and next_rms <= rms_limit
+        and next_max <= max_limit
+    )
+
+
+def point_corner_angle_deg(prev_point, point, next_point):
+    vector_a = prev_point - point
+    vector_b = next_point - point
+    denom = float(np.linalg.norm(vector_a) * np.linalg.norm(vector_b))
+    if denom <= 1e-6:
+        return 180.0
+    cosine = float(np.dot(vector_a, vector_b) / denom)
+    cosine = max(-1.0, min(1.0, cosine))
+    return math.degrees(math.acos(cosine))
+
+
+def line_fit_errors(points):
+    if len(points) < 2:
+        return float("inf"), float("inf")
+    center = np.mean(points, axis=0)
+    centered = points - center
+    covariance = centered.T @ centered
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    normal = eigenvectors[:, int(np.argmin(eigenvalues))]
+    distances = np.abs(centered @ normal)
+    return float(np.sqrt(np.mean(distances * distances))), float(np.max(distances))
+
+
+def cyclic_true_clusters(flags):
+    if not flags or not any(flags):
+        return []
+    count = len(flags)
+    if all(flags):
+        return [list(range(count))]
+
+    start = 0
+    for index, flag in enumerate(flags):
+        if not flag:
+            start = (index + 1) % count
+            break
+
+    clusters = []
+    current = []
+    for offset in range(count):
+        index = (start + offset) % count
+        if flags[index]:
+            current.append(index)
+        elif current:
+            clusters.append(current)
+            current = []
+    if current:
+        clusters.append(current)
+    return clusters
+
+
+def is_rectangular_block_candidate(rectangular_profile):
+    right_angle_count = rectangular_profile["right_angle_count"]
+    has_four_straight_edges = (
+        rectangular_profile["straight_edge_count"] >= 4
+        and rectangular_profile["edge_linearity"] >= 0.55
+    )
+    has_dense_right_angles = (
+        2 <= right_angle_count <= 4
+        and rectangular_profile["edge_linearity"] >= 0.35
+    )
+    return has_four_straight_edges or has_dense_right_angles
+
+
+def choose_cube_or_cuboid_from_weights(scored_templates, rectangular_profile):
+    cube_template_score = template_score_for_shape(scored_templates, "Cube")
+    cuboid_template_score = template_score_for_shape(scored_templates, "Cuboid")
+    ratio = rectangular_profile["ratio"]
+
+    if ratio >= 1.18:
+        return ("Cuboid", "cuboid", 0.88)
+    if ratio <= 1.10:
+        return ("Cube", "cube", 0.88)
+
+    cube_weighted_score = cube_template_score + 0.35 * max(0.0, ratio - 1.10)
+    cuboid_weighted_score = cuboid_template_score + 0.35 * max(0.0, 1.18 - ratio)
+
+    if cuboid_weighted_score < cube_weighted_score:
+        return ("Cuboid", "cuboid", 0.86)
+    return ("Cube", "cube", 0.86)
+
+
+def template_score_for_shape(scored_templates, shape):
+    for score, _, template in scored_templates:
+        if template["shape"] == shape:
+            return score
+    return 1.0
+
+
+def contour_min_area_ratio(contour):
+    rect = cv2.minAreaRect(contour)
+    width, height = rect[1]
+    if min(width, height) <= 1e-6:
+        return 1.0
+    return max(width, height) / min(width, height)
+
+
+def should_try_quincunx_pentagonal_refine(scored_templates):
+    best_shape = scored_templates[0][2]["shape"]
+    if best_shape == "Pentagonal":
+        return True
+    if best_shape != "Quincunx":
+        return False
+
+    top_shapes = {item[2]["shape"] for item in scored_templates[:3]}
+    return "Pentagonal" in top_shapes
+
+
+def infer_quincunx_or_pentagonal_from_corners(contour, scored_templates):
+    best_shape = scored_templates[0][2]["shape"]
+    if best_shape not in ("Quincunx", "Pentagonal"):
+        return None
+
+    corner_profile = corner_geometry_analysis(contour)
+    defects = count_convexity_defects(contour)
+    is_pentagonal = is_pentagonal_corner_profile(corner_profile, defects)
+    if is_pentagonal:
+        log_pentagonal_corner_decision(
+            scored_templates, corner_profile, defects, "Pentagonal", "second_pass"
+        )
+        return ("Pentagonal", "pentagonal", 0.88)
+
+    log_pentagonal_corner_decision(
+        scored_templates, corner_profile, defects, "Quincunx", "second_pass"
+    )
+    return ("Quincunx", "quincunx", 0.86)
+
+
+def corner_geometry_analysis(contour):
+    perimeter = cv2.arcLength(contour, True)
+    empty_profile = {
+        "edge_count": 0,
+        "corner_count": 0,
+        "corner_angles_deg": [],
+        "edge_linearity": 0.0,
+        "angle_spread_deg": 180.0,
+        "epsilon_ratio": 0.0,
+    }
+    if perimeter <= 1e-6:
+        return empty_profile
+
+    best_profile = None
+    best_score = None
+    for epsilon_ratio in (0.012, 0.016, 0.020, 0.024, 0.028, 0.032):
+        approx = cv2.approxPolyDP(contour, epsilon_ratio * perimeter, True)
+        points = approx.reshape(-1, 2).astype(float)
+        points = remove_short_polygon_edges(points, perimeter * 0.018)
+        if len(points) < 3:
+            continue
+
+        edge_lengths = polygon_edge_lengths(points)
+        if not edge_lengths:
+            continue
+
+        angles = polygon_corner_angles_deg(points)
+        if not angles:
+            continue
+
+        corner_count = sum(45.0 <= angle <= 155.0 for angle in angles)
+        edge_linearity = sum(edge_lengths) / perimeter
+        angle_spread = max(angles) - min(angles)
+        edge_count = len(points)
+        profile = {
+            "edge_count": edge_count,
+            "corner_count": corner_count,
+            "corner_angles_deg": [round(angle, 1) for angle in angles],
+            "edge_linearity": edge_linearity,
+            "angle_spread_deg": angle_spread,
+            "epsilon_ratio": epsilon_ratio,
+        }
+        score = (
+            4.0 * abs(edge_count - 5)
+            + 2.0 * abs(corner_count - 5)
+            + 3.0 * max(0.0, 0.86 - edge_linearity)
+            + epsilon_ratio
+        )
+        if best_score is None or score < best_score:
+            best_profile = profile
+            best_score = score
+
+    return best_profile if best_profile is not None else empty_profile
+
+
+def remove_short_polygon_edges(points, min_edge_length):
+    if len(points) < 3:
+        return points
+
+    filtered = list(points)
+    changed = True
+    while changed and len(filtered) >= 4:
+        changed = False
+        for index in range(len(filtered)):
+            current_point = filtered[index]
+            next_point = filtered[(index + 1) % len(filtered)]
+            if float(np.linalg.norm(next_point - current_point)) < min_edge_length:
+                del filtered[(index + 1) % len(filtered)]
+                changed = True
+                break
+    return np.array(filtered, dtype=float)
+
+
+def polygon_edge_lengths(points):
+    lengths = []
+    for index in range(len(points)):
+        vector = points[(index + 1) % len(points)] - points[index]
+        length = float(np.linalg.norm(vector))
+        if length > 1e-6:
+            lengths.append(length)
+    return lengths
+
+
+def polygon_corner_angles_deg(points):
+    angles = []
+    for index in range(len(points)):
+        prev_point = points[(index - 1) % len(points)]
+        point = points[index]
+        next_point = points[(index + 1) % len(points)]
+        vector_a = prev_point - point
+        vector_b = next_point - point
+        denom = float(np.linalg.norm(vector_a) * np.linalg.norm(vector_b))
+        if denom <= 1e-6:
+            continue
+        cosine = float(np.dot(vector_a, vector_b) / denom)
+        cosine = max(-1.0, min(1.0, cosine))
+        angles.append(math.degrees(math.acos(cosine)))
+    return angles
+
+
+def is_pentagonal_corner_profile(corner_profile, defects):
+    checks = pentagonal_corner_checks(corner_profile, defects)
+    return all(checks.values())
+
+
+def pentagonal_corner_checks(corner_profile, defects):
+    angles = corner_profile["corner_angles_deg"]
+    if not angles:
+        return {
+            "defects_le_1": defects <= 1,
+            "edge_count_eq_5": False,
+            "corner_count_eq_5": False,
+            "edge_linearity_ge_0_93": False,
+            "angles_in_95_125": False,
+            "angle_spread_le_20": False,
+        }
+
+    return {
+        "defects_le_1": defects <= 1,
+        "edge_count_eq_5": corner_profile["edge_count"] == 5,
+        "corner_count_eq_5": corner_profile["corner_count"] == 5,
+        "edge_linearity_ge_0_93": corner_profile["edge_linearity"] >= 0.93,
+        "angles_in_95_125": min(angles) >= 95.0 and max(angles) <= 125.0,
+        "angle_spread_le_20": corner_profile["angle_spread_deg"] <= 20.0,
+    }
+
+
+def log_pentagonal_corner_decision(scored_templates, corner_profile, defects, result, source):
+    if not PENTAGONAL_CORNER_LOG:
+        return
+    if not should_emit_pentagonal_corner_log():
+        return
+
+    top3 = ", ".join(
+        f"{template['shape']}:{score:.4f}"
+        for score, _, template in scored_templates[:3]
+    )
+    checks = pentagonal_corner_checks(corner_profile, defects)
+    checks_text = ", ".join(
+        f"{name}={int(value)}"
+        for name, value in checks.items()
+    )
+    angles_text = ", ".join(f"{angle:.1f}" for angle in corner_profile["corner_angles_deg"])
+    print(
+        "[pentagonal-debug] "
+        f"source={source} "
+        f"top3=[{top3}] "
+        f"defects={defects} "
+        f"edge_count={corner_profile['edge_count']} "
+        f"corner_count={corner_profile['corner_count']} "
+        f"corner_angles_deg=[{angles_text}] "
+        f"edge_linearity={corner_profile['edge_linearity']:.4f} "
+        f"angle_spread_deg={corner_profile['angle_spread_deg']:.1f} "
+        f"epsilon_ratio={corner_profile['epsilon_ratio']:.3f} "
+        f"checks=[{checks_text}] "
+        f"result={result}",
+        flush=True,
+    )
+
+
+def should_emit_pentagonal_corner_log():
+    global PENTAGONAL_CORNER_LAST_LOG_TIME
+
+    now = time.monotonic()
+    if now - PENTAGONAL_CORNER_LAST_LOG_TIME < PENTAGONAL_CORNER_LOG_INTERVAL_S:
+        return False
+    PENTAGONAL_CORNER_LAST_LOG_TIME = now
+    return True
 
 
 def infer_four_lobed_shape_from_outline(contour, scored_templates):
@@ -851,7 +1343,14 @@ def write_vision_result(detections, calibration, sim_time):
     temp_path = VISION_RESULT_FILE + ".tmp"
     with open(temp_path, "w", encoding="utf-8") as file:
         json.dump(payload, file, ensure_ascii=True, indent=2)
-    os.replace(temp_path, VISION_RESULT_FILE)
+    try:
+        os.replace(temp_path, VISION_RESULT_FILE)
+    except PermissionError:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except OSError:
+            pass
 
 
 def draw_overlay(frame, fps, detections, calibration):
