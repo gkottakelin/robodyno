@@ -22,6 +22,8 @@ WINDOW_NAME = "top_camera_preview"
 BASE_DIR = os.path.dirname(__file__)
 SNAPSHOT_FILE = os.path.join(BASE_DIR, "camera_preview_latest.png")
 VISION_RESULT_FILE = os.path.join(BASE_DIR, "vision_latest.json")
+STAGE_SNAPSHOT_DIR = os.path.join(BASE_DIR, "vision_stages")
+STAGE_SAVE_INTERVAL_S = 1.0
 SHAPE_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "robocom_webots", "shapes"))
 
 # The Webots top camera image is opposite to the competition field view.
@@ -48,6 +50,8 @@ MIN_OBJECT_AREA_PX = 450
 PENTAGONAL_CORNER_LOG = True
 PENTAGONAL_CORNER_LOG_INTERVAL_S = 0.1
 PENTAGONAL_CORNER_LAST_LOG_TIME = 0.0
+STAGE_SAVE_ERROR_REPORTED = False
+STAGE_SAVE_SUCCESS_REPORTED = False
 
 ANGLE_FREE_SHAPES = ("Cylindrical",)
 
@@ -121,10 +125,12 @@ def main():
 
     print(f"Camera vision started: {width}x{height}")
     print(f"Vision result file: {VISION_RESULT_FILE}")
+    print(f"Vision stage images: {STAGE_SNAPSHOT_DIR}")
     print("Press q/Esc to close. Press s to save a snapshot.")
 
     frame_count = 0
     last_time = robot.getTime()
+    last_stage_save_time = -STAGE_SAVE_INTERVAL_S
     fps = 0.0
 
     while robot.step(time_step) != -1:
@@ -133,8 +139,8 @@ def main():
             continue
 
         image = np.frombuffer(raw_image, np.uint8).reshape((height, width, 4))
-        frame = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-        frame = apply_image_transform(frame)
+        raw_frame = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+        frame = apply_image_transform(raw_frame.copy())
 
         frame_count += 1
         now = robot.getTime()
@@ -143,17 +149,30 @@ def main():
             frame_count = 0
             last_time = now
 
-        detections, calibration = detect_blocks(frame)
+        detections, calibration, stage_data = detect_blocks(frame)
         write_vision_result(detections, calibration, now)
-        draw_overlay(frame, fps, detections, calibration)
+        display_frame = frame.copy()
+        draw_overlay(display_frame, fps, detections, calibration)
 
-        cv2.imshow(WINDOW_NAME, frame)
+        if now - last_stage_save_time >= STAGE_SAVE_INTERVAL_S:
+            save_processing_stages(
+                raw_frame,
+                frame,
+                display_frame,
+                detections,
+                calibration,
+                stage_data,
+                now,
+            )
+            last_stage_save_time = now
+
+        cv2.imshow(WINDOW_NAME, display_frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q") or key == 27:
             break
         if key == ord("s"):
-            cv2.imwrite(SNAPSHOT_FILE, frame)
+            cv2.imwrite(SNAPSHOT_FILE, display_frame)
             print(f"Saved snapshot: {SNAPSHOT_FILE}")
 
     cv2.destroyAllWindows()
@@ -175,10 +194,15 @@ def detect_blocks(frame):
     roi_mask[y : y + h, x : x + w] = 255
 
     detections = []
+    segmented_colors = np.zeros_like(frame)
+    cleaned_colors = np.zeros_like(frame)
+    accepted_contours = []
     for color_name, ranges in COLOR_RANGES.items():
         color_mask = make_color_mask(hsv, ranges)
         color_mask = cv2.bitwise_and(color_mask, roi_mask)
+        segmented_colors[color_mask > 0] = color_to_bgr(color_name)
         color_mask = clean_mask(color_mask)
+        cleaned_colors[color_mask > 0] = color_to_bgr(color_name)
 
         for contour in find_external_contours(color_mask):
             area = cv2.contourArea(contour)
@@ -195,6 +219,13 @@ def detect_blocks(frame):
             shape, shape_label, geometry_conf = infer_shape_from_geometry(contour)
 
             angle_deg = measure_angle_deg(shape, contour, center)
+            accepted_contours.append(
+                {
+                    "contour": contour,
+                    "center": center,
+                    "color": color_name,
+                }
+            )
 
             detections.append(
                 {
@@ -211,7 +242,13 @@ def detect_blocks(frame):
             )
 
     detections.sort(key=lambda item: (item["world_center_m"][1], item["world_center_m"][0]))
-    return detections, calibration
+    stage_data = {
+        "roi_mask": roi_mask,
+        "segmented_colors": segmented_colors,
+        "cleaned_colors": cleaned_colors,
+        "accepted_contours": accepted_contours,
+    }
+    return detections, calibration, stage_data
 
 
 def detect_pick_table_bounds(hsv, frame_shape):
@@ -1323,6 +1360,118 @@ def estimate_confidence(area, geometry_conf):
     area_conf = min(1.0, area / 2200.0)
     confidence = 0.45 + 0.35 * area_conf + 0.20 * geometry_conf
     return round(min(0.99, confidence), 2)
+
+
+def save_processing_stages(
+    raw_frame,
+    corrected_frame,
+    recognition_frame,
+    detections,
+    calibration,
+    stage_data,
+    sim_time,
+):
+    global STAGE_SAVE_ERROR_REPORTED, STAGE_SAVE_SUCCESS_REPORTED
+
+    roi_image = make_roi_stage_image(corrected_frame, calibration["table_bounds_px"])
+    segmented_image = make_mask_stage_image(corrected_frame, stage_data["segmented_colors"])
+    cleaned_image = make_mask_stage_image(corrected_frame, stage_data["cleaned_colors"])
+    contour_image = make_contour_stage_image(corrected_frame, stage_data["accepted_contours"])
+    json_image = make_json_stage_image(corrected_frame.shape, detections, sim_time)
+
+    stage_images = (
+        ("01_camera_raw.png", raw_frame),
+        ("02_direction_corrected.png", corrected_frame),
+        ("03_roi_constraint.png", roi_image),
+        ("04_hsv_segmentation.png", segmented_image),
+        ("05_morphology_clean.png", cleaned_image),
+        ("06_contour_extraction.png", contour_image),
+        ("07_shape_recognition.png", recognition_frame),
+        ("08_json_output.png", json_image),
+    )
+
+    try:
+        os.makedirs(STAGE_SNAPSHOT_DIR, exist_ok=True)
+        for filename, image in stage_images:
+            path = os.path.join(STAGE_SNAPSHOT_DIR, filename)
+            if not write_image(path, image):
+                raise OSError(f"Could not write stage image: {path}")
+        STAGE_SAVE_ERROR_REPORTED = False
+        if not STAGE_SAVE_SUCCESS_REPORTED:
+            print(f"Vision stage images saved: {STAGE_SNAPSHOT_DIR}")
+            STAGE_SAVE_SUCCESS_REPORTED = True
+    except (OSError, cv2.error) as exc:
+        if not STAGE_SAVE_ERROR_REPORTED:
+            print(f"Vision stage image save failed: {exc}")
+            STAGE_SAVE_ERROR_REPORTED = True
+
+
+def write_image(path, image):
+    extension = os.path.splitext(path)[1] or ".png"
+    encoded_ok, encoded = cv2.imencode(extension, image)
+    if not encoded_ok:
+        return False
+    with open(path, "wb") as file:
+        file.write(encoded.tobytes())
+    return True
+
+
+def make_roi_stage_image(frame, table_bounds):
+    x, y, w, h = [int(value) for value in table_bounds]
+    result = cv2.convertScaleAbs(frame, alpha=0.22, beta=0)
+    result[y : y + h, x : x + w] = frame[y : y + h, x : x + w]
+    cv2.rectangle(result, (x, y), (x + w, y + h), (60, 230, 80), 3)
+    return result
+
+
+def make_mask_stage_image(frame, colored_mask):
+    result = cv2.convertScaleAbs(frame, alpha=0.16, beta=8)
+    active = np.any(colored_mask != 0, axis=2)
+    result[active] = colored_mask[active]
+    return result
+
+
+def make_contour_stage_image(frame, accepted_contours):
+    result = cv2.convertScaleAbs(frame, alpha=0.48, beta=0)
+    for item in accepted_contours:
+        contour = item["contour"]
+        color = color_to_bgr(item["color"])
+        cv2.drawContours(result, [contour], -1, color, 3)
+        cx, cy = item["center"]
+        cv2.drawMarker(
+            result,
+            (int(round(cx)), int(round(cy))),
+            color,
+            markerType=cv2.MARKER_CROSS,
+            markerSize=18,
+            thickness=2,
+        )
+    return result
+
+
+def make_json_stage_image(frame_shape, detections, sim_time):
+    height, width = frame_shape[:2]
+    canvas = np.full((height, width, 3), (28, 28, 32), dtype=np.uint8)
+    draw_text(canvas, "vision_latest.json", (18, 34), (80, 210, 255), 0.75, 2)
+    draw_text(canvas, f"sim_time_s: {sim_time:.3f}", (18, 62), (220, 220, 220), 0.48, 1)
+    draw_text(canvas, f"objects: {len(detections)}", (18, 86), (220, 220, 220), 0.48, 1)
+
+    y = 118
+    line_height = 40
+    for index, detection in enumerate(detections[:8]):
+        world_x, world_y, world_z = detection["world_center_m"]
+        line = (
+            f"[{index}] {detection['shape_label']}  {detection['color_label']}  "
+            f"xyz=({world_x:.3f},{world_y:.3f},{world_z:.3f})"
+        )
+        detail = (
+            f"    angle={detection['angle_z_deg']:.1f} deg  "
+            f"confidence={detection['confidence']:.2f}"
+        )
+        draw_text(canvas, line, (18, y), (100, 230, 120), 0.42, 1)
+        draw_text(canvas, detail, (18, y + 18), (200, 200, 205), 0.40, 1)
+        y += line_height
+    return canvas
 
 
 def write_vision_result(detections, calibration, sim_time):
