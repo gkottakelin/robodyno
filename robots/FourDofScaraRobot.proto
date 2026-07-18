@@ -30,6 +30,7 @@ PROTO FourDofScaraRobot [
   field MFNode     baseChildren    []
   field MFNode     endChildren     []
   field SFString   controller       ""
+  field SFBool     supervisor       FALSE
 ]
 
 {
@@ -121,7 +122,7 @@ PROTO FourDofScaraRobot [
                 translation %<= fields.upperarmLength.value - 0.085 + 0.15 >% 0 -0.091
                 motor_id IS thirdJointId
                 outputEnd "motorHousing"
-                children [
+                    children [
                   TBracket {
                     translation 0.03 0 -0.045
                     rotation -0.5773502691873165 0.5773482691863839 0.5773522691882489 -2.094395307179586
@@ -185,7 +186,7 @@ PROTO FourDofScaraRobot [
                     translation %<= fields.forearmLength.value - 0.085 + 0.15 >% 0 -0.091
                     rotation 0.707 0.707 0 0
                     motor_id IS fourthJointId
-                    children [
+                            children [
                       Pose {
                         children IS endChildren
                       }
@@ -199,5 +200,6 @@ PROTO FourDofScaraRobot [
       }
     ]
     controller IS controller
+    supervisor IS supervisor
   }
 }

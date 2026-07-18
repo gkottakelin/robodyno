@@ -96,11 +96,10 @@ def main():
         pass
 
     if cv2 is None or np is None:
-        print("OpenCV preview is unavailable.")
-        print("Install dependencies in the Webots Python environment:")
-        print("pip install opencv-python numpy")
-        print(f"Original import error: {import_error}")
-        print(f"Saving one snapshot per second to: {SNAPSHOT_FILE}")
+        print("OpenCV is unavailable — writing empty vision result for sorter.")
+        print("Install: pip install opencv-python numpy")
+        print(f"Import error: {import_error}")
+        write_vision_result([], {"table_bounds_mode": "no_opencv"}, 0.0)
         frame_id = 0
         frames_per_second = max(1, int(1000 / time_step))
         while robot.step(time_step) != -1:
@@ -112,13 +111,15 @@ def main():
     width = camera.getWidth()
     height = camera.getHeight()
 
-    cv2.startWindowThread()
-    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(WINDOW_NAME, width, height)
+    show_preview = os.environ.get("VISION_PREVIEW", "1") not in ("0", "false", "False", "no")
+    if show_preview:
+        cv2.startWindowThread()
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(WINDOW_NAME, width, height)
 
     print(f"Camera vision started: {width}x{height}")
     print(f"Vision result file: {VISION_RESULT_FILE}")
-    print("Press q/Esc to close. Press s to save a snapshot.")
+    print(f"Preview window: {'ON' if show_preview else 'OFF (set VISION_PREVIEW=0 to enable)'}")
 
     frame_count = 0
     last_time = robot.getTime()
@@ -144,16 +145,17 @@ def main():
         write_vision_result(detections, calibration, now)
         draw_overlay(frame, fps, detections, calibration)
 
-        cv2.imshow(WINDOW_NAME, frame)
+        if show_preview:
+            cv2.imshow(WINDOW_NAME, frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q") or key == 27:
+                break
+            if key == ord("s"):
+                cv2.imwrite(SNAPSHOT_FILE, frame)
+                print(f"Saved snapshot: {SNAPSHOT_FILE}")
 
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q") or key == 27:
-            break
-        if key == ord("s"):
-            cv2.imwrite(SNAPSHOT_FILE, frame)
-            print(f"Saved snapshot: {SNAPSHOT_FILE}")
-
-    cv2.destroyAllWindows()
+    if show_preview:
+        cv2.destroyAllWindows()
 
 
 def apply_image_transform(frame):

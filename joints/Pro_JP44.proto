@@ -12,7 +12,7 @@ PROTO Pro_JP44 [
   field SFVec3f    translation 0 0 0
   field SFRotation rotation    0 0 1 0
   field SFString   motor_id    "0x10"
-  field SFString{"motorFlange", "motorHousing"} outputEnd "motorFlange" 
+  field SFString{"motorFlange", "motorHousing"} outputEnd "motorFlange"
   field SFFloat    position    0
   field MFNode     children    []
 ]

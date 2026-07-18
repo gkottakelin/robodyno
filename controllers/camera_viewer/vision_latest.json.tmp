@@ -1,6 +1,6 @@
 {
-  "sim_time_s": 145.776,
-  "timestamp_unix": 1783391998.588,
+  "sim_time_s": 145.792,
+  "timestamp_unix": 1783391998.624,
   "image_transform": "rotate_180",
   "shape_rule": "geometry_only_official_stl_template_match",
   "angle_rule": "circle_zero_cube_cuboid_rect_axis_cruciform_nearest_equivalent_else_farthest_equivalent_min_abs_x_angle",
@@ -95,21 +95,21 @@
       "confidence": 0.99
     },
     {
-      "shape": "Cruciform",
-      "shape_label": "cruciform",
+      "shape": "Quincunx",
+      "shape_label": "quincunx",
       "color": "pink",
       "color_label": "pink",
       "pixel_center": [
-        258.6,
-        154.6
+        259.2,
+        157.3
       ],
       "world_center_m": [
-        -0.06703,
-        0.2871,
+        -0.06669,
+        0.28558,
         0.01
       ],
-      "angle_z_deg": 1.6,
-      "area_px": 3012.5,
+      "angle_z_deg": -7.4,
+      "area_px": 3279.5,
       "confidence": 0.97
     }
   ]

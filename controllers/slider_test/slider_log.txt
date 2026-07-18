@@ -1,0 +1,5 @@
+dt=4
+linear=OK, rotary=OK
+Phase0: lin=-0.050m rot=-31rad
+Phase1: lin=-0.100m rot=-62rad
+Phase2: lin=-0.150m rot=-94rad
