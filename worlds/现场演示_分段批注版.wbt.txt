@@ -1,0 +1,405 @@
+#VRML_SIM R2023b utf8
+
+# ============================================================
+# 现场演示复制说明
+# ============================================================
+# 使用方法：
+# 1. 在 Webots 中新建一个 World，先删除默认无关节点，保留或新建 WorldInfo、Viewpoint 等基础节点。
+# 2. 按下面“第1步 -> 第8步”的顺序复制代码。
+# 3. 每复制完一段，可以在 Webots 左侧场景树里检查对应节点是否出现。
+# 4. 最后点击保存，再运行仿真，SCARA 控制器应为 desktop_sorter，顶部相机控制器应为 camera_viewer。
+#
+# 注意：
+# - EXTERNPROTO 路径必须和本机 robodyno 工程实际路径一致。
+# - 当前工程路径为 D:/robodyno1/robodyno/robodyno/...
+# - 如果现场电脑路径不同，需要先把下面所有 D:/robodyno1/... 改成现场电脑对应路径。
+# - 这份文件是“批注版”，可以整体复制进 .wbt，也可以按步骤分段复制。
+
+
+# ============================================================
+# 第1步：导入所有会用到的 PROTO 模型
+# 复制位置：放在 .wbt 文件最开头，紧跟 #VRML_SIM R2023b utf8 后面。
+# 作用：告诉 Webots 后面会用到哪些自定义模型。
+# 如果这一步漏掉，后面 BaseBoard、Cube、FourDofScaraRobot 等节点会显示无法识别。
+# ============================================================
+
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/objects/BaseBoard.proto"                # 黑色底板
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robots/FourDofScaraRobot.proto"        # 四自由度 SCARA 机械臂
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/endEffector/Vacuum_Gripper.proto"      # 真空吸盘
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/camera/RobodynoCamera.proto"           # 顶部相机
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/MaterialBox.proto"      # 取料区小格子
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/MaterialTray.proto"     # 码放托盘
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/Cube.proto"             # 正方形工件
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/Cuboid.proto"           # 长方形工件
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/FivePointed.proto"      # 五角星工件
+EXTERNPROTO "D:/robodyno1/robodyno/robodyno/robocom_webots/Pentagonal.proto"       # 五边形工件
+
+
+# ============================================================
+# 第2步：世界基础设置
+# 复制位置：PROTO 导入后面。
+# 作用：
+# - WorldInfo 设置仿真步长和接触参数；
+# - Viewpoint 设置打开场景后的观察视角；
+# - Background 设置天空颜色；
+# - DirectionalLight 设置光照。
+# 现场讲解重点：maxContactJoints 用来减少接触点不足导致的红色接触警告。
+# ============================================================
+
+WorldInfo {
+  basicTimeStep 16
+  contactProperties [
+    ContactProperties {
+      coulombFriction [
+        0.8
+      ]
+      maxContactJoints 24
+    }
+  ]
+}
+
+Viewpoint {
+  orientation -0.5735012888648895 0.5792651688433853 0.5792651688433844 2.082828813651519
+  position -0.023412250672500374 0.22246652146536827 0.4035384701238212
+  description "Province scene overview"
+}
+
+Background {
+  skyColor [
+    0.78 0.82 0.88
+  ]
+}
+
+DirectionalLight {
+  direction -0.4 -0.5 -1
+  intensity 1.8
+  castShadows TRUE
+}
+
+
+# ============================================================
+# 第3步：搭建地面和三块黑色底板
+# 复制位置：世界基础设置后面。
+# 作用：
+# - floor 是浅色地面；
+# - base_board_robot 是机械臂底板；
+# - base_board_pick 是取料区底板；
+# - base_board_place 是码放区底板。
+# 现场讲解重点：三个 BaseBoard 分别对应机器人、取料区、码放区，是整个桌面任务的空间基础。
+# ============================================================
+
+Solid {
+  translation -0.12 0.12 -0.016
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.86 0.86 0.82
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 1.1 1.1 0.01
+      }
+    }
+  ]
+  name "floor"
+  boundingObject Box {
+    size 1.1 1.1 0.01
+  }
+}
+
+BaseBoard {
+  name "base_board_robot"
+}
+
+BaseBoard {
+  translation 0 0.35 -0.01
+  name "base_board_pick"
+}
+
+BaseBoard {
+  translation -0.35 0 -0.01
+  name "base_board_place"
+}
+
+
+# ============================================================
+# 第4步：搭建取料台 pick_table
+# 复制位置：三块底板后面。
+# 作用：
+# - 绿色半透明矩形表示视觉识别/抓取的取料范围；
+# - 四条深绿色细边用于显示取料区边界；
+# - camera_viewer.py 中的 ROI 识别范围就是围绕这个取料区设计的。
+# 现场讲解重点：视觉只识别取料区内工件，减少码放区、机械臂和桌面边缘造成误识别。
+# ============================================================
+
+Solid {
+  translation -0.025 0.245 0.005
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.82 0.96 0.84
+        transparency 0.12
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box {
+        size 0.3 0.14 0.01
+      }
+    }
+    Pose {
+      translation 0 0.071 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.1 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.304 0.003 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation 0 -0.071 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.1 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.304 0.003 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation -0.1515 0 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.1 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.003 0.144 0.001
+          }
+        }
+      ]
+    }
+    Pose {
+      translation 0.1515 0 0.0057
+      children [
+        Shape {
+          appearance PBRAppearance {
+            baseColor 0.02 0.1 0.02
+            roughness 1
+            metalness 0
+          }
+          geometry Box {
+            size 0.003 0.144 0.001
+          }
+        }
+      ]
+    }
+  ]
+  name "pick_table"
+  boundingObject Box {
+    size 0.3 0.14 0.01
+  }
+}
+
+
+# ============================================================
+# 第5步：搭建码放区、取料小格和码放托盘
+# 复制位置：pick_table 后面。
+# 作用：
+# - place_table 是粉色半透明码放区域；
+# - MaterialBox 是取料台上放置工件的小格；
+# - MaterialTray 是最终码放的上/下托盘。
+# 现场讲解重点：控制器 desktop_sorter.py 会把不同形状工件放到指定托盘槽位。
+# ============================================================
+
+Solid {
+  translation -0.2625 0 0.005
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.58 0.88
+        transparency 0.35
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box {
+        size 0.175 0.35 0.01
+      }
+    }
+  ]
+  name "place_table"
+  boundingObject Box {
+    size 0.175 0.35 0.01
+  }
+}
+
+MaterialBox {
+  translation -0.0975 0.21 0.01
+  name "material_box_1"
+}
+
+MaterialBox {
+  translation 0.0475 0.21 0.01
+  name "material_box_2"
+}
+
+MaterialBox {
+  translation -0.0975 0.28 0.01
+  name "material_box_3"
+}
+
+MaterialBox {
+  translation 0.0475 0.28 0.01
+  name "material_box_4"
+}
+
+MaterialTray {
+  translation -0.2625 0.0875 0.01
+  name "material_tray_top"
+}
+
+MaterialTray {
+  translation -0.2625 -0.0875 0.01
+  name "material_tray_bottom"
+}
+
+
+# ============================================================
+# 第6步：放置 8 个比赛工件
+# 复制位置：码放区和托盘后面。
+# 作用：
+# - DEF 名称给 Supervisor 控制器读取真实坐标用；
+# - name 名称给 Webots 场景树显示用；
+# - translation 是工件在世界坐标系中的位置。
+# 现场讲解重点：
+# - CUBE 是正方形；
+# - CUBOID 是长方形；
+# - FIVE_POINTED 是五角星；
+# - PENTAGONAL 是五边形；
+# - 这里一共 4 类、8 件，正好对应固定场景演示任务。
+# ============================================================
+
+DEF CUBE_1 Cube {
+  translation -0.06 0.28 0.021
+  name "cube_1"
+}
+
+DEF CUBE_2 Cube {
+  translation -0.065 0.21 0.021
+  name "cube_2"
+}
+
+DEF CUBOID_1 Cuboid {
+  translation 0.015 0.21 0.021
+  name "cuboid_1"
+}
+
+DEF CUBOID_2 Cuboid {
+  translation 0.01 0.27 0.021
+  name "cuboid_2"
+}
+
+DEF FIVE_POINTED_1 FivePointed {
+  translation -0.13 0.28 0.022
+  name "five_pointed_1"
+}
+
+DEF FIVE_POINTED_2 FivePointed {
+  translation -0.122 0.21 0.022
+  name "five_pointed_2"
+}
+
+DEF PENTAGONAL_1 Pentagonal {
+  translation 0.079 0.21 0.021
+  name "pentagonal_1"
+}
+
+DEF PENTAGONAL_2 Pentagonal {
+  translation 0.08 0.28 0.021
+  name "pentagonal_2"
+}
+
+
+# ============================================================
+# 第7步：加入 SCARA 机械臂和真空吸盘
+# 复制位置：8 个工件后面。
+# 作用：
+# - FourDofScaraRobot 是四自由度 SCARA 机械臂；
+# - rotation 让机械臂朝向取料区和码放区；
+# - upperarmLength / forearmLength 设置两段连杆长度；
+# - endChildren 中加入 Vacuum_Gripper，表示末端安装真空吸盘；
+# - controller "desktop_sorter" 指定机械臂运行桌面分拣控制程序；
+# - supervisor TRUE 允许控制器读取/修改场景中工件节点状态。
+# 现场讲解重点：这是执行层核心，负责“定位、下降、吸取、抬升、搬运、释放”。
+# ============================================================
+
+FourDofScaraRobot {
+  rotation 0 0 1 2.35619449
+  name "scara"
+  upperarmLength 0.15
+  forearmLength 0.15
+  endChildren [
+    Vacuum_Gripper {
+    }
+  ]
+  controller "desktop_sorter"
+  supervisor TRUE
+}
+
+
+# ============================================================
+# 第8步：加入顶部视觉相机
+# 复制位置：机械臂后面，通常放在整个场景最后。
+# 作用：
+# - RobodynoCamera 是顶部相机；
+# - translation 设置相机在取料区上方；
+# - controller "camera_viewer" 指定视觉识别控制器；
+# - camera_viewer.py 会识别工件形状、坐标和角度，并可输出 vision_latest.json。
+# 现场讲解重点：这是感知层核心，对应“顶部视觉识别 -> 任务生成 -> 机械臂执行”的第一步。
+# ============================================================
+
+RobodynoCamera {
+  translation -0.032 0.245 0.45
+  name "top_camera"
+  controller "camera_viewer"
+}
+
+
+# ============================================================
+# 现场检查清单
+# ============================================================
+# 复制完成后，在 Webots 左侧场景树中应看到：
+# 1. WorldInfo、Viewpoint、Background、DirectionalLight
+# 2. Solid "floor"
+# 3. BaseBoard "base_board_robot"、"base_board_pick"、"base_board_place"
+# 4. Solid "pick_table"、Solid "place_table"
+# 5. MaterialBox 1-4，MaterialTray top/bottom
+# 6. CUBE_1、CUBE_2、CUBOID_1、CUBOID_2、FIVE_POINTED_1、FIVE_POINTED_2、PENTAGONAL_1、PENTAGONAL_2
+# 7. FourDofScaraRobot "scara"，controller 应为 desktop_sorter
+# 8. RobodynoCamera "top_camera"，controller 应为 camera_viewer
+#
+# 如果运行时报 EXTERNPROTO 路径错误：
+# - 检查 D:/robodyno1/robodyno/robodyno/... 是否真实存在；
+# - 如果工程在别的盘，统一替换路径。
+#
+# 如果运行后机械臂不动：
+# - 检查 scara 的 controller 是否为 desktop_sorter；
+# - 检查 controllers/desktop_sorter/desktop_sorter.py 是否存在；
+# - 检查 Webots 控制台是否有 Python 包缺失提示。
+#
+# 如果摄像头窗口不出现：
+# - 检查 top_camera 的 controller 是否为 camera_viewer；
+# - 检查 controllers/camera_viewer/camera_viewer.py 是否存在。

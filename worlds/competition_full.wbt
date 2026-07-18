@@ -1,0 +1,236 @@
+#VRML_SIM R2023b utf8
+# Full Competition Scene — Desktop Sorting (桌面组)
+# 9 shape types supported; 8 pieces placed across 4 material boxes.
+# The vision-guided controller dynamically identifies shapes/colors
+# and sorts each piece into its designated tray slot.
+
+EXTERNPROTO "../objects/BaseBoard.proto"
+EXTERNPROTO "../robots/FourDofScaraRobot.proto"
+EXTERNPROTO "../endEffector/Vacuum_Gripper.proto"
+EXTERNPROTO "../camera/RobodynoCamera.proto"
+
+EXTERNPROTO "../robocom_webots/MaterialBox.proto"
+EXTERNPROTO "../robocom_webots/MaterialTray.proto"
+EXTERNPROTO "../robocom_webots/Cube.proto"
+EXTERNPROTO "../robocom_webots/Cuboid.proto"
+EXTERNPROTO "../robocom_webots/FivePointed.proto"
+EXTERNPROTO "../robocom_webots/Pentagonal.proto"
+EXTERNPROTO "../robocom_webots/Cylindrical.proto"
+EXTERNPROTO "../robocom_webots/Quincunx.proto"
+EXTERNPROTO "../robocom_webots/Parallelogram.proto"
+EXTERNPROTO "../robocom_webots/Cruciform.proto"
+EXTERNPROTO "../robocom_webots/Triangle.proto"
+
+WorldInfo {
+  basicTimeStep 8
+  contactProperties [
+    ContactProperties {
+      material1 "default"
+      material2 "default"
+      coulombFriction [
+        0.8
+      ]
+      maxContactJoints 24
+    }
+  ]
+}
+
+Viewpoint {
+  orientation -0.577350 0.577350 0.577350 2.094395
+  position 0.05 -0.15 1.15
+  description "Full Competition — Desktop Sorter"
+}
+
+Background {
+  skyColor [
+    0.78 0.82 0.88
+  ]
+}
+
+DirectionalLight {
+  direction -0.4 -0.5 -1
+  intensity 1.8
+  castShadows TRUE
+}
+
+# ===================================================================
+# Floor
+# ===================================================================
+Solid {
+  translation -0.12 0.12 -0.016
+  name "floor"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.86 0.86 0.82
+        roughness 1
+        metalness 0
+      }
+      geometry Box { size 1.1 1.1 0.01 }
+    }
+  ]
+  boundingObject Box { size 1.1 1.1 0.01 }
+}
+
+# ===================================================================
+# Base boards
+# ===================================================================
+BaseBoard { translation 0 0 -0.01       name "base_board_robot"  locked TRUE }
+BaseBoard { translation 0 0.35 -0.01    name "base_board_pick"   locked TRUE }
+BaseBoard { translation -0.35 0 -0.01   name "base_board_place"  locked TRUE }
+
+# ===================================================================
+# Pick table (300 mm x 140 mm acrylic)
+# ===================================================================
+Solid {
+  translation -0.025 0.245 0.005
+  name "pick_table"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.82 0.96 0.84
+        transparency 0.12
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box { size 0.3 0.14 0.01 }
+    }
+    # Green edge markings for vision calibration
+    Pose { translation 0 0.071 0.0057  children [
+      Shape { appearance PBRAppearance { baseColor 0.02 0.1 0.02 roughness 1 metalness 0 }
+              geometry Box { size 0.304 0.003 0.001 } }
+    ]}
+    Pose { translation 0 -0.071 0.0057  children [
+      Shape { appearance PBRAppearance { baseColor 0.02 0.1 0.02 roughness 1 metalness 0 }
+              geometry Box { size 0.304 0.003 0.001 } }
+    ]}
+    Pose { translation -0.1515 0 0.0057  children [
+      Shape { appearance PBRAppearance { baseColor 0.02 0.1 0.02 roughness 1 metalness 0 }
+              geometry Box { size 0.003 0.144 0.001 } }
+    ]}
+    Pose { translation 0.1515 0 0.0057  children [
+      Shape { appearance PBRAppearance { baseColor 0.02 0.1 0.02 roughness 1 metalness 0 }
+              geometry Box { size 0.003 0.144 0.001 } }
+    ]}
+  ]
+  boundingObject Box { size 0.3 0.14 0.01 }
+}
+
+# ===================================================================
+# Place table (350 mm x 175 mm acrylic)
+# ===================================================================
+Solid {
+  translation -0.2625 0 0.005
+  name "place_table"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.92 0.58 0.88
+        transparency 0.35
+        roughness 0.4
+        metalness 0
+      }
+      geometry Box { size 0.175 0.35 0.01 }
+    }
+  ]
+  boundingObject Box { size 0.175 0.35 0.01 }
+}
+
+# ===================================================================
+# Material boxes (4 boxes on pick table, 2 compartments each)
+# ===================================================================
+MaterialBox { translation -0.0975 0.21 0.01  name "material_box_1"  locked TRUE }
+MaterialBox { translation  0.0475 0.21 0.01  name "material_box_2"  locked TRUE }
+MaterialBox { translation -0.0975 0.28 0.01  name "material_box_3"  locked TRUE }
+MaterialBox { translation  0.0475 0.28 0.01  name "material_box_4"  locked TRUE }
+
+# ===================================================================
+# Placing trays (2 trays on place table)
+# ===================================================================
+MaterialTray { translation -0.2625  0.0875 0.01  name "material_tray_top"     locked TRUE }
+MaterialTray { translation -0.2625 -0.0875 0.01  name "material_tray_bottom"  locked TRUE }
+
+# ===================================================================
+# Workpieces — 8 pieces from 8 different shapes
+#
+# Box 1 (y=0.21, x=-0.0975): Cube, Cuboid
+# Box 2 (y=0.21, x=+0.0475): FivePointed, Pentagonal
+# Box 3 (y=0.28, x=-0.0975): Cylindrical, Triangular
+# Box 4 (y=0.28, x=+0.0475): Cruciform, Parallelogram
+#
+# The 9th shape (Quincunx) can replace any piece as needed.
+# Each DEF name encodes shape_type_index for traceability.
+# ===================================================================
+
+# --- Box 1 ---------------------------------------------------------
+DEF CUBE_1 Cube {
+  translation -0.13 0.21 0.021
+  name "cube_1"
+}
+DEF CUBOID_1 Cuboid {
+  translation -0.065 0.21 0.021
+  name "cuboid_1"
+}
+
+# --- Box 2 ---------------------------------------------------------
+DEF FIVE_POINTED_1 FivePointed {
+  translation 0.015 0.21 0.022
+  name "five_pointed_1"
+}
+DEF PENTAGONAL_1 Pentagonal {
+  translation 0.08 0.21 0.021
+  name "pentagonal_1"
+}
+
+# --- Box 3 ---------------------------------------------------------
+DEF CYLINDRICAL_1 Cylindrical {
+  translation -0.13 0.28 0.020
+  name "cylindrical_1"
+}
+DEF TRIANGULAR_1 Triangle {
+  translation -0.065 0.28 0.020
+  name "triangular_1"
+}
+
+# --- Box 4 ---------------------------------------------------------
+DEF CRUCIFORM_1 Cruciform {
+  translation 0.015 0.28 0.020
+  name "cruciform_1"
+}
+DEF PARALLELOGRAM_1 Parallelogram {
+  translation 0.08 0.28 0.020
+  name "parallelogram_1"
+}
+
+# ===================================================================
+# SCARA Robot with vacuum gripper
+# ===================================================================
+FourDofScaraRobot {
+  translation 0 0 0
+  rotation 0 0 1 0
+  name "scara"
+  sliderInitPose 0.25
+  upperarmLength 0.15
+  forearmLength 0.15
+  controller "desktop_sorter"
+  supervisor TRUE
+  endChildren [
+    Vacuum_Gripper {
+      name "vacuum_gripper"
+      vacuum_id "0x21"
+    }
+  ]
+}
+
+# ===================================================================
+# Top-down camera for vision
+# ===================================================================
+RobodynoCamera {
+  translation -0.032 0.245 0.45
+  rotation 0.707 0.707 0 3.14159
+  name "top_camera"
+  cameraId "camera"
+  width 640
+  height 480
+  controller "camera_viewer"
+}

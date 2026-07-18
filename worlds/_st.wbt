@@ -18,7 +18,7 @@ EXTERNPROTO "../robocom_webots/Cruciform.proto"
 EXTERNPROTO "../robocom_webots/Triangle.proto"
 
 WorldInfo {
-  basicTimeStep 8
+  basicTimeStep 4
   contactProperties [
     ContactProperties {
       material1 "default"
@@ -34,7 +34,7 @@ WorldInfo {
 Viewpoint {
   orientation -0.577350 0.577350 0.577350 2.094395
   position 0.05 -0.15 1.15
-  description "Competition scene overview"
+  description "Province scene overview"
 }
 
 Background {
@@ -224,54 +224,51 @@ MaterialTray {
   locked TRUE
 }
 
-# Competition workpieces — 8 pieces from 8 different shape types.
-# Box 1 (back-left):  Cube, Cuboid
-# Box 2 (back-right): FivePointed, Pentagonal
-# Box 3 (front-left): Cylindrical, Triangular
-# Box 4 (front-right):Cruciform, Parallelogram
-
+# Sample provincial-stage materials: 4 types, 2 identical pieces per box.
 DEF CUBE_1 Cube {
   translation -0.13 0.21 0.021
   name "cube_1"
 }
-DEF CUBOID_1 Cuboid {
+DEF CUBE_2 Cube {
   translation -0.065 0.21 0.021
+  name "cube_2"
+}
+DEF CUBOID_1 Cuboid {
+  translation 0.015 0.21 0.021
   name "cuboid_1"
 }
+DEF CUBOID_2 Cuboid {
+  translation 0.08 0.21 0.021
+  name "cuboid_2"
+}
 DEF FIVE_POINTED_1 FivePointed {
-  translation 0.015 0.21 0.022
+  translation -0.13 0.28 0.022
   name "five_pointed_1"
 }
+DEF FIVE_POINTED_2 FivePointed {
+  translation -0.065 0.28 0.022
+  name "five_pointed_2"
+}
 DEF PENTAGONAL_1 Pentagonal {
-  translation 0.08 0.21 0.021
+  translation 0.015 0.28 0.021
   name "pentagonal_1"
 }
-DEF CYLINDRICAL_1 Cylindrical {
-  translation -0.13 0.28 0.020
-  name "cylindrical_1"
-}
-DEF TRIANGULAR_1 Triangle {
-  translation -0.065 0.28 0.020
-  name "triangular_1"
-}
-DEF CRUCIFORM_1 Cruciform {
-  translation 0.015 0.28 0.020
-  name "cruciform_1"
-}
-DEF PARALLELOGRAM_1 Parallelogram {
-  translation 0.08 0.28 0.020
-  name "parallelogram_1"
+DEF PENTAGONAL_2 Pentagonal {
+  translation 0.08 0.28 0.021
+  name "pentagonal_2"
 }
 
 # Robot and vision system.
 FourDofScaraRobot {
   translation 0 0 0
-  rotation 0 0 1 0
+  # Face the corner between the pick table (+Y) and placing table (-X).
+  # 135 deg avoids turning to the opposite/right side of the base board.
+  rotation 0 0 1 2.35619449
   name "scara"
   sliderInitPose 0.25
   upperarmLength 0.15
   forearmLength 0.15
-  controller "desktop_sorter"
+  controller "slider_test"
   supervisor TRUE
   endChildren [
     Vacuum_Gripper {
